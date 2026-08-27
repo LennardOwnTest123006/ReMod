@@ -27,6 +27,7 @@ public final class ProjectTemplate {
     private final String mainClassName;
     private final String minecraftVersion;
     private final ApiVersion apiVersion;
+    private final String minecraftRange;
     private final String author;
 
     public ProjectTemplate(String modName, String packageName, String minecraftVersion,
@@ -42,6 +43,10 @@ public final class ProjectTemplate {
                     + minecraftVersion + ". Choose a release version such as 1.21.4.");
         }
         this.apiVersion = resolved;
+        // Every Minecraft version ReMod supports. Because the generated mod
+        // declares the portable API baseline, one jar really does cover it.
+        this.minecraftRange = ">=" + dev.remod.adapter.VersionSupportTable.OLDEST_SUPPORTED
+                + " <2.0";
         this.author = author;
     }
 
@@ -92,6 +97,11 @@ public final class ProjectTemplate {
 
     public ApiVersion apiVersion() {
         return apiVersion;
+    }
+
+    /** The Minecraft range the generated manifest declares. */
+    public String minecraftRange() {
+        return minecraftRange;
     }
 
     /**
@@ -202,19 +212,39 @@ public final class ProjectTemplate {
     }
 
     private String gradleProperties() {
-        String minecraftDir = dev.remod.common.io.Platform.defaultMinecraftDirectory().toString();
+        java.nio.file.Path minecraftDir = resolveMinecraftDirectory();
+        String api = minecraftDir.resolve("remod/api").resolve(ReModVersions.apiArtifactName())
+                .toString().replace("\\", "/");
+        String mods = minecraftDir.resolve("remod/mods").toString().replace("\\", "/");
+        boolean apiPresent = java.nio.file.Files.isRegularFile(java.nio.file.Paths.get(api));
         return "# Your mod's own version. Bump it when you release.\n"
                 + "modVersion=1.0.0\n"
                 + "\n"
-                + "# The ReMod API jar to compile against. The ReMod installer puts one here\n"
-                + "# for every Minecraft version you install ReMod for.\n"
-                + "remodApiPath=" + minecraftDir.replace("\\", "/") + "/remod/api/"
-                + ReModVersions.apiArtifactName(apiVersion.minecraftSeries()) + "\n"
+                + "# The ReMod API jar to compile against, put here by the ReMod installer.\n"
+                + "# The same jar works for every Minecraft version, so this path does not\n"
+                + "# change when you install ReMod for another one.\n"
+                + (apiPresent ? "" : "# NOTE: this file was not found when the project was"
+                        + " generated. Install ReMod\n#       for any Minecraft version, or"
+                        + " edit the path below.\n")
+                + "remodApiPath=" + api + "\n"
                 + "\n"
                 + "# Where './gradlew installMod' copies the built jar.\n"
-                + "remodModsPath=" + minecraftDir.replace("\\", "/") + "/remod/mods\n"
+                + "remodModsPath=" + mods + "\n"
                 + "\n"
                 + "org.gradle.jvmargs=-Xmx1g\n";
+    }
+
+    /** The Minecraft directory that actually exists on this machine, if any. */
+    private static java.nio.file.Path resolveMinecraftDirectory() {
+        java.nio.file.Path found = dev.remod.common.io.Platform.findExistingMinecraftDirectory();
+        return found != null ? found
+                : dev.remod.common.io.Platform.defaultMinecraftDirectory();
+    }
+
+    /** True when the API jar the generated project points at is already present. */
+    public boolean isApiJarInstalled() {
+        return java.nio.file.Files.isRegularFile(resolveMinecraftDirectory()
+                .resolve("remod/api").resolve(ReModVersions.apiArtifactName()));
     }
 
     private String manifest() {
@@ -225,8 +255,11 @@ public final class ProjectTemplate {
                 + "  \"version\": \"${modVersion}\",\n"
                 + "  \"author\": \"" + author + "\",\n"
                 + "  \"description\": \"A ReMod mod.\",\n"
-                + "  \"minecraft\": \"" + apiVersion.minecraftSeries() + ".x\",\n"
-                + "  \"remod_api\": \"" + apiVersion + "\",\n"
+                // The portable API baseline plus a range: one jar, every
+                // Minecraft version ReMod supports. Narrow either if your mod
+                // turns out to need a specific series.
+                + "  \"minecraft\": \"" + minecraftRange + "\",\n"
+                + "  \"remod_api\": \"" + apiVersion.baseline().raw() + "\",\n"
                 + "  \"side\": \"common\",\n"
                 + "  \"entrypoints\": [\"" + mainClass() + "\"],\n"
                 + "  \"dependencies\": []\n"

@@ -66,8 +66,10 @@ public final class CreateCommand implements CliCommand {
         console.field("Location", root.toString());
         console.field("Mod id", template.modId());
         console.field("Main class", template.mainClass());
-        console.field("Minecraft", minecraftVersion);
-        console.field("ReMod API", template.apiVersion().toString());
+        console.field("ReMod API", template.apiVersion().baseline().raw()
+                + " (portable)");
+        console.field("Minecraft", template.minecraftRange()
+                + " -- one jar covers all of it");
         console.blank();
         console.print("Files:");
         for (Path file : written) {
@@ -80,10 +82,20 @@ public final class CreateCommand implements CliCommand {
                 + "-1.0.0.jar");
         console.bullet("./gradlew installMod     # copies it into your ReMod mods folder");
         console.blank();
-        console.print("If the build cannot find the ReMod API jar, install ReMod for Minecraft "
-                + minecraftVersion + " first,");
-        console.print("or point gradle.properties' remodApiPath at a ReMod API jar you already"
-                + " have.");
+        if (template.isApiJarInstalled()) {
+            console.print("The build is already pointed at your installed ReMod API jar.");
+        } else {
+            console.print("No ReMod API jar was found on this machine, so gradle.properties"
+                    + " points at where");
+            console.print("the installer will put one. Install ReMod for any Minecraft"
+                    + " version, or edit that path.");
+        }
+        console.blank();
+        console.print("Your mod declares the portable API baseline and a wide Minecraft range,"
+                + " so the one");
+        console.print("jar loads on every version ReMod supports. Narrow 'minecraft' in"
+                + " remod.mod.json to");
+        console.print("what you have actually tested before you publish.");
         return 0;
     }
 

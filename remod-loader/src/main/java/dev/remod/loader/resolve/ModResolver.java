@@ -137,14 +137,19 @@ public final class ModResolver {
                                 .file(candidate.fileName())
                                 .expected(metadata.apiVersion().toString())
                                 .found(installedApi.toString());
-                if (!installedApi.minecraftSeries().equals(
-                        metadata.apiVersion().minecraftSeries())) {
-                    error.detail("This mod was built against the ReMod API for Minecraft "
+                if (!metadata.apiVersion().isPortable()
+                        && !installedApi.minecraftSeries().equals(
+                                metadata.apiVersion().minecraftSeries())) {
+                    error.detail("This mod is pinned to the ReMod API for Minecraft "
                                     + metadata.apiVersion().minecraftSeries()
                                     + ", but ReMod is running the API for Minecraft "
                                     + installedApi.minecraftSeries() + ".")
                             .solution("Install the " + metadata.apiVersion().minecraftSeries()
-                                    + " build of " + metadata.name() + ".");
+                                    + " build of " + metadata.name() + ".")
+                            .solution("Mod authors: declaring \"remod_api\": \""
+                                    + metadata.apiVersion().baseline().raw() + "\" instead of \""
+                                    + metadata.apiVersion() + "\" makes one jar work on every"
+                                    + " Minecraft version the mod supports.");
                 } else if (installedApi.baseline().compareTo(
                         metadata.apiVersion().baseline()) < 0) {
                     error.detail("This mod needs newer ReMod API features than the installed"
@@ -155,7 +160,7 @@ public final class ModResolver {
                     error.detail("This mod was built against a ReMod API major version that is"
                                     + " no longer source-compatible.")
                             .solution("Ask the mod's author for a build against ReMod API "
-                                    + installedApi + ".");
+                                    + installedApi.baseline().raw() + ".");
                 }
                 errors.add(error.build());
                 continue;

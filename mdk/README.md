@@ -31,9 +31,9 @@ is normally:
 
 | Operating system | Path |
 | --- | --- |
-| Windows | `%APPDATA%\.minecraft\remod\api\remod-api-<series>-<baseline>.jar` |
-| macOS | `~/Library/Application Support/minecraft/remod/api/remod-api-<series>-<baseline>.jar` |
-| Linux | `~/.minecraft/remod/api/remod-api-<series>-<baseline>.jar` |
+| Windows | `%APPDATA%\.minecraft\remod\api\remod-api-<baseline>.jar` |
+| macOS | `~/Library/Application Support/minecraft/remod/api/remod-api-<baseline>.jar` |
+| Linux | `~/.minecraft/remod/api/remod-api-<baseline>.jar` |
 
 ## Checking your mod loads
 

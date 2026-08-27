@@ -93,7 +93,9 @@ class ReModCliTest {
         assertTrue(Files.isRegularFile(manifest));
         String json = Files.readString(manifest, StandardCharsets.UTF_8);
         assertTrue(json.contains("\"id\": \"mytestmod\""), json);
-        assertTrue(json.contains("\"remod_api\": \"1.21-1.0.0\""), json);
+        // The portable API form, so one jar covers every supported Minecraft version.
+        assertTrue(json.contains("\"remod_api\": \"1.0.0\""), json);
+        assertTrue(json.contains("\"minecraft\": \">=1.17 <2.0\""), json);
         assertTrue(json.contains("dev.example.testmod.MyTestMod"), json);
 
         Path source = root.resolve("src/main/java/dev/example/testmod/MyTestMod.java");
@@ -116,8 +118,13 @@ class ReModCliTest {
         dev.remod.api.mod.ModMetadata metadata =
                 dev.remod.api.mod.ModMetadata.parse(json, "generated");
         assertEquals("parsedmod", metadata.id());
-        assertEquals("1.20-1.0.0", metadata.apiVersion().toString());
+        assertEquals("1.0.0", metadata.apiVersion().toString());
+        assertTrue(metadata.apiVersion().isPortable());
+        // Generated for 1.20.1, but the range and the portable API mean the one
+        // jar also loads on every other supported version.
         assertTrue(metadata.minecraft().matches("1.20.1"));
+        assertTrue(metadata.minecraft().matches("1.21.4"));
+        assertTrue(metadata.minecraft().matches("1.17.1"));
     }
 
     @Test

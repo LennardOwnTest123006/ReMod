@@ -5,8 +5,8 @@
   "version": "${modVersion}",
   "author": "Your Name",
   "description": "A ReMod mod.",
-  "minecraft": "1.21.x",
-  "remod_api": "1.21-1.0.0",
+  "minecraft": ">=1.17 <2.0",
+  "remod_api": "1.0.0",
   "side": "common",
   "entrypoints": ["dev.example.myremodproject.MyReModProject"],
   "dependencies": []

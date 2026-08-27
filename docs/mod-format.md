@@ -52,8 +52,8 @@ author.
   "version": "1.0.0",
   "author": "ReMod Developer",
   "description": "A simple ReMod example mod.",
-  "minecraft": "1.21.x",
-  "remod_api": "1.21-1.0.0",
+  "minecraft": ">=1.17 <2.0",
+  "remod_api": "1.0.0",
   "side": "common",
   "entrypoints": ["dev.example.simplemod.SimpleMod"],
   "dependencies": [],
@@ -72,7 +72,7 @@ author.
 | `id` | Lower-case, 2–64 characters, `a-z 0-9 _ -`, starting with a letter. Also the namespace for everything the mod registers. |
 | `version` | The mod's own version. Semantic versioning is expected; Minecraft-shaped versions parse too. |
 | `minecraft` | A version *range* the mod supports, e.g. `1.21.x`, `>=1.20 <1.22`, `1.20.x \|\| 1.21.x`. |
-| `remod_api` | The exact API version built against, e.g. `1.21-1.0.0`. |
+| `remod_api` | The API baseline built against, e.g. `1.0.0`. See below. |
 | `entrypoints` | One or more classes implementing `dev.remod.api.ReModMod`. |
 
 ### Optional fields
@@ -111,13 +111,45 @@ These are different things and confusing them is the most common manifest
 mistake:
 
 - **`minecraft`** — which Minecraft versions the mod works on. A *range*.
-- **`remod_api`** — which ReMod API the mod was compiled against. An *exact*
-  pair of a Minecraft series and an API baseline: `1.21-1.0.0`.
+- **`remod_api`** — which ReMod API the mod was compiled against.
 
-The API version's Minecraft series must match the installed one exactly, because
-Minecraft's own internals differ between series and an API built for another is
-not substitutable. Within a series, the API follows semantic versioning: a mod
-runs on any later baseline with the same major component.
+### One jar, every version
+
+`remod_api` normally takes the **portable** form: a bare baseline, `"1.0.0"`.
+
+That works because the ReMod API never references a Minecraft class. A mod
+*describes* an item with `ItemDefinition` rather than constructing one, and the
+version adapter does the translating — so the API classes are byte-identical on
+every Minecraft series. There is nothing for the API version to be tied to.
+
+The practical consequence is the point of the whole design:
+
+```json
+"minecraft": ">=1.17 <2.0",
+"remod_api": "1.0.0"
+```
+
+That single jar loads on 1.17 through 1.21 and on future releases, with no
+per-version builds. The `minecraft` range is what decides where it runs; make it
+honest about what you have actually tested.
+
+### Pinning, when you really need it
+
+`remod_api` also accepts a **pinned** form, `"1.21-1.0.0"`, meaning "this mod
+only works on the 1.21 series". ReMod then refuses to load it anywhere else.
+Use it only when the mod genuinely cannot work elsewhere — it costs you the
+single-jar property, and ReMod's error message will suggest the portable form
+to whoever hits it.
+
+A pinned mod whose `minecraft` range reaches outside its pinned series is
+rejected at parse time, because it could never load across the range it claims.
+
+### The baseline, in both forms
+
+The baseline follows semantic versioning: a mod runs on any later baseline with
+the same major component. `1.21-1.4.0` installed satisfies a mod needing
+`1.0.0`; it does not satisfy one needing `1.5.0` (that mod wants API features
+this ReMod does not have) or `2.0.0` (a breaking API change).
 
 ## Building one
 

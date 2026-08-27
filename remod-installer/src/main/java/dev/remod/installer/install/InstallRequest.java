@@ -10,12 +10,16 @@ public final class InstallRequest {
     private final Path minecraftDirectory;
     private final Path gameDirectoryOverride;
     private final boolean createLauncherProfile;
+    private final boolean downloadMinecraft;
+    private final dev.remod.installer.manifest.MinecraftVersionEntry manifestEntry;
 
     private InstallRequest(Builder builder) {
         this.minecraftVersion = builder.minecraftVersion;
         this.minecraftDirectory = builder.minecraftDirectory;
         this.gameDirectoryOverride = builder.gameDirectoryOverride;
         this.createLauncherProfile = builder.createLauncherProfile;
+        this.downloadMinecraft = builder.downloadMinecraft;
+        this.manifestEntry = builder.manifestEntry;
     }
 
     public static Builder builder(String minecraftVersion, Path minecraftDirectory) {
@@ -44,6 +48,22 @@ public final class InstallRequest {
         return createLauncherProfile;
     }
 
+    /**
+     * Whether to download the vanilla Minecraft files now.
+     *
+     * <p>Requires {@link #manifestEntry()}. When false, or when no entry is
+     * supplied, the official launcher downloads them on first launch instead --
+     * ReMod's profile inherits from the vanilla version either way.</p>
+     */
+    public boolean downloadMinecraft() {
+        return downloadMinecraft && manifestEntry != null;
+    }
+
+    /** The manifest entry for this version, or {@code null} when unavailable. */
+    public dev.remod.installer.manifest.MinecraftVersionEntry manifestEntry() {
+        return manifestEntry;
+    }
+
     /** Fluent builder for {@link InstallRequest}. */
     public static final class Builder {
 
@@ -51,6 +71,8 @@ public final class InstallRequest {
         private final Path minecraftDirectory;
         private Path gameDirectoryOverride;
         private boolean createLauncherProfile = true;
+        private boolean downloadMinecraft = true;
+        private dev.remod.installer.manifest.MinecraftVersionEntry manifestEntry;
 
         private Builder(String minecraftVersion, Path minecraftDirectory) {
             this.minecraftVersion = Objects.requireNonNull(minecraftVersion, "minecraftVersion");
@@ -65,6 +87,18 @@ public final class InstallRequest {
 
         public Builder createLauncherProfile(boolean value) {
             this.createLauncherProfile = value;
+            return this;
+        }
+
+        /** Download the vanilla Minecraft files during the install. Default true. */
+        public Builder downloadMinecraft(boolean value) {
+            this.downloadMinecraft = value;
+            return this;
+        }
+
+        /** The manifest entry, which carries the download URLs and checksums. */
+        public Builder manifestEntry(dev.remod.installer.manifest.MinecraftVersionEntry value) {
+            this.manifestEntry = value;
             return this;
         }
 

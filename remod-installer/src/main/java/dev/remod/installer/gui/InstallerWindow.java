@@ -77,6 +77,8 @@ public final class InstallerWindow extends JFrame {
     private final JComboBox<VersionTableModel.Filter> filterBox =
             new JComboBox<>(VersionTableModel.Filter.values());
     private final JCheckBox hideUnsupported = new JCheckBox("Hide versions ReMod cannot install");
+    private final JCheckBox downloadMinecraft =
+            new JCheckBox("Download Minecraft now, so the first launch is instant");
     private final JLabel selectedLabel = new JLabel("No version selected");
     private final JLabel supportLabel = new JLabel(" ");
     private final JTextField directoryField = new JTextField();
@@ -236,12 +238,27 @@ public final class InstallerWindow extends JFrame {
         row.add(browse, BorderLayout.EAST);
 
         Theme.muted(installedLabel);
+        downloadMinecraft.setSelected(true);
+        downloadMinecraft.setFont(Theme.smallFont());
+        downloadMinecraft.setOpaque(false);
+        downloadMinecraft.setToolTipText("ReMod fetches the Minecraft version file and client"
+                + " jar from Mojang. Leave this off to let the launcher download them the"
+                + " first time you press Play.");
+
+        JPanel bottom = new JPanel();
+        bottom.setOpaque(false);
+        bottom.setLayout(new BoxLayout(bottom, BoxLayout.Y_AXIS));
+        downloadMinecraft.setAlignmentX(Component.LEFT_ALIGNMENT);
+        installedLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bottom.add(downloadMinecraft);
+        bottom.add(Box.createVerticalStrut(4));
+        bottom.add(installedLabel);
 
         JPanel content = new JPanel(new BorderLayout(0, 6));
         content.setOpaque(false);
         content.add(heading, BorderLayout.NORTH);
         content.add(row, BorderLayout.CENTER);
-        content.add(installedLabel, BorderLayout.SOUTH);
+        content.add(bottom, BorderLayout.SOUTH);
         panel.add(content, BorderLayout.CENTER);
         return panel;
     }
@@ -399,6 +416,11 @@ public final class InstallerWindow extends JFrame {
         }
         selectedLabel.setText("Selected: Minecraft " + entry.id()
                 + "   ·   ReMod API " + apiLabel(entry.id()));
+        downloadMinecraft.setText(dev.remod.installer.install.MinecraftDownloader.isDownloaded(
+                        currentPaths(), entry.id())
+                ? "Minecraft " + entry.id() + " is already downloaded"
+                : "Download Minecraft " + entry.id()
+                        + " now, so the first launch is instant");
         supportLabel.setText("<html><body style='width:640px'>"
                 + VersionSupportTable.describe(entry.id()) + "</body></html>");
         installButton.setEnabled(VersionSupportTable.isInstallable(entry.id()));
@@ -445,7 +467,11 @@ public final class InstallerWindow extends JFrame {
             return;
         }
         InstallRequest request = InstallRequest.builder(entry.id(),
-                java.nio.file.Paths.get(directoryField.getText().trim())).build();
+                        java.nio.file.Paths.get(directoryField.getText().trim()))
+                // The manifest entry carries the download URLs and checksums.
+                .manifestEntry(entry)
+                .downloadMinecraft(downloadMinecraft.isSelected())
+                .build();
 
         installButton.setEnabled(false);
         uninstallButton.setEnabled(false);
@@ -455,8 +481,14 @@ public final class InstallerWindow extends JFrame {
         new SwingWorker<InstallResult, Void>() {
             @Override
             protected InstallResult doInBackground() {
-                return installer.install(request,
-                        (what, done, total) -> status.append("  " + what));
+                return installer.install(request, (what, done, total) -> {
+                    if (total > 0) {
+                        status.progress(done, total);
+                    } else {
+                        status.busy(true);
+                        status.append("  " + what);
+                    }
+                });
             }
 
             @Override

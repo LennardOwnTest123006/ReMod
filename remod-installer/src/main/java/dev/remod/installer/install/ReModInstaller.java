@@ -44,14 +44,27 @@ public final class ReModInstaller {
 
     private final BundledLibraries libraries;
     private final CompatibilityRegistry compatibility;
+    private final MinecraftDownloader downloader;
 
     public ReModInstaller() {
-        this(BundledLibraries.load(), CompatibilityRegistry.standard());
+        this(BundledLibraries.load(), CompatibilityRegistry.standard(),
+                new MinecraftDownloader(new dev.remod.common.net.HttpFetcher(
+                        dev.remod.common.io.Platform.remodHome().resolve("cache"))));
     }
 
     public ReModInstaller(BundledLibraries libraries, CompatibilityRegistry compatibility) {
+        this(libraries, compatibility, null);
+    }
+
+    /**
+     * @param downloader fetches the vanilla Minecraft files, or {@code null} to
+     *                   leave that to the official launcher
+     */
+    public ReModInstaller(BundledLibraries libraries, CompatibilityRegistry compatibility,
+                          MinecraftDownloader downloader) {
         this.libraries = libraries;
         this.compatibility = compatibility;
+        this.downloader = downloader;
     }
 
     /**
@@ -91,8 +104,8 @@ public final class ReModInstaller {
         }
         Path vanilla = paths.versionsDirectory().resolve(version);
         if (!Files.isDirectory(vanilla)) {
-            LOG.warn("Minecraft " + version + " is not downloaded yet. ReMod's installation"
-                    + " inherits from it, so the launcher will download it on first launch.");
+            LOG.debug(() -> "Minecraft " + version + " is not downloaded yet; ReMod will"
+                    + " fetch it, or the launcher will on first launch.");
         }
     }
 
@@ -113,6 +126,10 @@ public final class ReModInstaller {
         try {
             listener.step("Preparing ReMod directories");
             paths.createDirectories();
+
+            // Fetch vanilla first: if it fails, nothing has been written into
+            // the launcher's configuration yet and the install is a clean no-op.
+            downloadMinecraft(request, paths, listener, notes);
 
             listener.step("Installing ReMod libraries");
             int installed = libraries.installInto(paths.librariesDirectory());
@@ -154,6 +171,34 @@ public final class ReModInstaller {
     }
 
     /**
+     * Downloads the vanilla version this installation inherits from.
+     *
+     * <p>Failure here is a note, not an abort: the launcher downloads the same
+     * files on first launch, so an offline install still produces a working
+     * profile -- it just takes longer the first time Play is pressed.</p>
+     */
+    private void downloadMinecraft(InstallRequest request, ReModPaths paths,
+                                   ProgressListener listener, List<String> notes) {
+        if (downloader == null || !request.downloadMinecraft()) {
+            notes.add("Minecraft " + request.minecraftVersion() + " was not downloaded by"
+                    + " ReMod; the official launcher will fetch it the first time you press"
+                    + " Play.");
+            return;
+        }
+        try {
+            MinecraftDownloader.Result result =
+                    downloader.download(paths, request.manifestEntry(), listener);
+            LOG.info("Minecraft " + request.minecraftVersion() + ": " + result.summary());
+        } catch (dev.remod.common.net.DownloadException e) {
+            LOG.warn("Could not download Minecraft " + request.minecraftVersion() + ": "
+                    + e.getMessage());
+            notes.add("ReMod could not download Minecraft " + request.minecraftVersion()
+                    + " (" + e.getMessage() + "). This is not fatal: the official launcher"
+                    + " will download it the first time you press Play.");
+        }
+    }
+
+    /**
      * Copies the API jar to {@code remod/api/} under a name carrying the
      * Minecraft series, so a developer can compile against exactly the API their
      * chosen version uses.
@@ -164,7 +209,7 @@ public final class ReModInstaller {
             return null;
         }
         Path target = paths.apiDirectory()
-                .resolve(ReModVersions.apiArtifactName(apiVersion.minecraftSeries()));
+                .resolve(ReModVersions.apiArtifactName());
         if (libraries.installDeveloperApi(target)) {
             LOG.info("Installed ReMod API " + apiVersion + " to " + target);
             return target;

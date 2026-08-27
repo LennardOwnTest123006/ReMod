@@ -31,8 +31,8 @@ import java.util.Map;
  *   "version": "1.0.0",
  *   "author": "ReMod Developer",
  *   "description": "A simple ReMod example mod.",
- *   "minecraft": "1.21.x",
- *   "remod_api": "1.21-1.0.0",
+ *   "minecraft": "1.20.x || 1.21.x",
+ *   "remod_api": "1.0.0",
  *   "side": "common",
  *   "entrypoints": ["dev.example.simplemod.SimpleMod"],
  *   "dependencies": [],
@@ -150,6 +150,20 @@ public final class ModMetadata {
             throw new ModMetadataException(source, "'remod_api' is '" + apiText + "'. "
                     + e.getMessage());
         }
+        // A mod pinned to one series but claiming a wider Minecraft range can
+        // never load across that range, which is almost always a mistake in the
+        // manifest rather than an intention.
+        // Ask the range itself rather than matching its text: ">=1.21 <1.22"
+        // is consistent with a 1.21 pin even though it does not start with it.
+        if (!builder.apiVersion.isPortable()
+                && !rangeCovers(builder.minecraft, builder.apiVersion.minecraftSeries())) {
+            throw new ModMetadataException(source, "'remod_api' is pinned to Minecraft "
+                    + builder.apiVersion.minecraftSeries() + " but 'minecraft' is '"
+                    + builder.minecraft.raw() + "', so this mod could never load on most of"
+                    + " the range it claims. Use the portable form \"remod_api\": \""
+                    + builder.apiVersion.baseline().raw() + "\" to support every version in"
+                    + " that range from one jar, or narrow 'minecraft' to the pinned series.");
+        }
 
         builder.side = Side.parse(root.optString("side", "common"));
 
@@ -217,6 +231,11 @@ public final class ModMetadata {
                     "field '" + key + "' must be a non-empty string");
         }
         return ((String) value).trim();
+    }
+
+    /** True when {@code range} admits any version in the {@code series} it is checked against. */
+    private static boolean rangeCovers(VersionRange range, String series) {
+        return range.matches(series) || range.matches(series + ".0");
     }
 
     /** Mod ids are lower-case, so that file names and namespaces stay portable. */
@@ -290,7 +309,13 @@ public final class ModMetadata {
         return minecraft;
     }
 
-    /** The ReMod API version this mod was built against. */
+    /**
+     * The ReMod API version this mod was built against.
+     *
+     * <p>Normally {@linkplain ApiVersion#isPortable() portable} -- a bare
+     * baseline such as {@code 1.0.0} -- which is what lets one jar cover every
+     * Minecraft version in {@link #minecraft()}.</p>
+     */
     public ApiVersion apiVersion() {
         return apiVersion;
     }

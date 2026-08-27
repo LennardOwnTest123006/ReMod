@@ -68,7 +68,7 @@ public final class ModTestFixtures {
             fields.put("name", quote(id));
             fields.put("version", quote("1.0.0"));
             fields.put("minecraft", quote("1.21.x"));
-            fields.put("remod_api", quote("1.21-1.0.0"));
+            fields.put("remod_api", quote("1.0.0"));
             fields.put("entrypoints", "[\"dev.example.Main\"]");
         }
 
@@ -89,6 +89,13 @@ public final class ModTestFixtures {
 
         public Manifest api(String value) {
             fields.put("remod_api", quote(value));
+            return this;
+        }
+
+        /** Pins the mod to one Minecraft series, narrowing 'minecraft' to match. */
+        public Manifest pinnedTo(String series, String baseline) {
+            fields.put("remod_api", quote(series + "-" + baseline));
+            fields.put("minecraft", quote(series + ".x"));
             return this;
         }
 

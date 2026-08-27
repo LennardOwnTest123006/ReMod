@@ -12,9 +12,11 @@ tasks.named('jar') {
 
 tasks.named('processResources') {
     inputs.property('modVersion', project.version)
-    inputs.property('apiVersion', "1.21-${project.property('remodApiBaseline')}")
+    // The portable API baseline, so one jar covers every Minecraft version
+    // the 'minecraft' range in remod.mod.json allows.
+    inputs.property('apiBaseline', project.property('remodApiBaseline'))
     filesMatching('remod.mod.json') {
         expand(modVersion: project.version,
-               apiVersion: "1.21-${project.property('remodApiBaseline')}")
+               apiBaseline: project.property('remodApiBaseline'))
     }
 }

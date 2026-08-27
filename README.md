@@ -48,10 +48,17 @@ Nothing in ReMod claims a capability it does not have.
 
 ## Features
 
+- **One mod jar, every version.** A mod declares an API baseline rather than a
+  Minecraft series, so a single jar loads on every Minecraft version its
+  `minecraft` range allows — 1.17 through 1.21 and beyond, no per-version
+  builds. This works because the API never references a Minecraft class.
 - **Dynamic version list.** Read live from Mojang's official version manifest,
   so a Minecraft version released tomorrow appears with no ReMod update.
   Searchable, filterable by release/snapshot, with each version's ReMod support
   level shown.
+- **Downloads Minecraft for you.** The installer fetches the version file and
+  client jar from Mojang, checksum-verified, so the first launch is instant.
+  Optional — the launcher does it otherwise.
 - **Version-adapter architecture.** One `GameBridge` per Minecraft family;
   supporting a new release means one new adapter, not a change to the API, the
   loader or any mod.
@@ -73,7 +80,9 @@ Nothing in ReMod claims a capability it does not have.
    `launcher_profiles.json`. (ReMod will not create that file itself — doing so
    could discard installations the launcher has not written yet.)
 3. Download `ReMod.jar` and double-click it, or run `java -jar ReMod.jar`.
-4. Pick a Minecraft version and click **Install ReMod**.
+4. Pick a Minecraft version and click **Install ReMod**. ReMod downloads that
+   Minecraft version, installs its own libraries and the matching ReMod API, and
+   adds the launcher installation.
 5. Open the Minecraft Launcher; **ReMod 1.21.4** is in the installations list.
 
 Mods go in:
@@ -167,7 +176,7 @@ requires reflection, and nothing requires compiling against Minecraft.
 | `remod create <name>` | Scaffold a mod project |
 | `remod build` | Build a project and verify the result |
 | `remod test --mods <dir>` | Load mods without starting Minecraft |
-| `remod install <version>` | Install ReMod for a Minecraft version |
+| `remod install <version>` | Install ReMod (add `--no-download` to skip fetching Minecraft) |
 | `remod uninstall <version>` | Remove it (mods, settings and worlds are kept) |
 | `remod init` | Create ReMod's folders (for servers and scripts) |
 | `remod list installs\|mods\|versions\|loaders` | Inspect what is present |

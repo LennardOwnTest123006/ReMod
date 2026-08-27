@@ -3,4 +3,5 @@ description = 'The remod command-line tool: project scaffolding, building and te
 dependencies {
     api project(':remod-loader')
     api project(':remod-installer')
+    api project(':remod-version-adapters')
 }

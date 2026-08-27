@@ -94,6 +94,19 @@ default - untick "Hide versions ReMod cannot install" to see them and why.
 
 Step 4. Click "Install ReMod".
 
+ReMod then, in order:
+
+  - downloads that Minecraft version from Mojang (the version file and the
+    client jar, both checksum-verified) so your first launch is instant;
+  - installs its own libraries into .minecraft/libraries;
+  - writes the launcher version files;
+  - installs the ReMod API jar you compile mods against;
+  - adds the launcher installation.
+
+The download is a tick box you can turn off. With it off, the official launcher
+downloads Minecraft the first time you press Play, exactly as it always would -
+ReMod's installation inherits from the vanilla one either way.
+
 Step 5. Open the Minecraft Launcher. "ReMod 1.21.4" is now in your
 installations list, alongside your existing ones. Nothing you already had was
 changed.
@@ -161,7 +174,7 @@ The first run downloads Gradle, which takes a minute. After that it is seconds.
 
 If the build says it cannot find the ReMod API jar, open gradle.properties and
 point remodApiPath at the jar the installer reported when it finished. It is
-normally at .minecraft/remod/api/remod-api-1.21-1.0.0.jar.
+normally at .minecraft/remod/api/remod-api-1.0.0.jar.
 
 
 ================================================================================
@@ -294,8 +307,8 @@ to decide whether your mod can run.
       "version": "${modVersion}",
       "author": "Your Name",
       "description": "My first ReMod mod.",
-      "minecraft": "1.21.x",
-      "remod_api": "1.21-1.0.0",
+      "minecraft": ">=1.17 <2.0",
+      "remod_api": "1.0.0",
       "side": "common",
       "entrypoints": ["dev.example.myfirstmod.MyFirstMod"],
       "dependencies": []
@@ -314,7 +327,9 @@ REQUIRED FIELDS
 
   minecraft     A RANGE of Minecraft versions you support (see section 18).
 
-  remod_api     The EXACT ReMod API you compiled against (see section 19).
+  remod_api     The ReMod API baseline you compiled against (see section 19).
+                Normally just "1.0.0", which makes ONE jar work on every
+                Minecraft version your "minecraft" range allows.
 
   entrypoints   One or more classes implementing ReModMod.
 
@@ -1044,11 +1059,14 @@ guessing would mean claiming a compatibility it cannot honour.
 
 SUPPORTING SEVERAL VERSIONS
 
-The ReMod API version is tied to a Minecraft series, so one jar cannot target
-1.20 and 1.21 at once. Ship one build per series, as other loaders' mods do:
+One jar covers all of them. Declare the portable API baseline (section 19) and
+a range:
 
-    mymod-1.0.0-mc1.20.jar
-    mymod-1.0.0-mc1.21.jar
+    "minecraft": ">=1.17 <2.0",
+    "remod_api": "1.0.0"
+
+You do NOT need one build per Minecraft version. Just be honest in the range
+about what you have tested.
 
 Check the version at runtime when behaviour must differ:
 
@@ -1063,40 +1081,79 @@ Check the version at runtime when behaviour must differ:
 Three different numbers. Keeping them apart matters:
 
     ReMod version       1.0.0        the loader and installer
-    API baseline        1.0.0        the shape of the API
-    ReMod API version   1.21-1.0.0   a baseline for one Minecraft series
+    ReMod API baseline  1.0.0        the shape of the API
     Minecraft version   1.21.4       the game
 
-Your manifest declares the API version:
+Your manifest declares the baseline:
 
-    "remod_api": "1.21-1.0.0"
+    "remod_api": "1.0.0"
 
-READ IT AS TWO HALVES
+ONE JAR, EVERY VERSION
 
-    1.21   the Minecraft series - must match EXACTLY
-    1.0.0  the API baseline - follows semantic versioning
+That bare baseline is the "portable" form, and it is what you should normally
+write. A mod declaring it runs on EVERY Minecraft version its "minecraft" range
+allows, from a single jar. No per-version builds.
 
-The Minecraft series must match exactly because Minecraft's internals differ
-between series and an API built for one is not substitutable for another.
+    "minecraft": ">=1.17 <2.0",
+    "remod_api": "1.0.0"
 
-Within a series, the baseline follows semantic versioning: your mod runs on any
+That jar loads on 1.17, 1.18, 1.19, 1.20, 1.21 and on releases that do not
+exist yet.
+
+WHY THAT WORKS
+
+Because the ReMod API never mentions a Minecraft class. You do not construct a
+Minecraft Item - you describe one with ItemDefinition, and ReMod's version
+adapter translates it for whichever Minecraft is running. So the API classes
+are identical on every version. There is nothing for your mod to be tied to.
+
+This is also why the API jar the installer puts in remod/api/ is called
+
+    remod-api-1.0.0.jar
+
+with no Minecraft version in the name. Install ReMod for a different Minecraft
+version and it is the same file, at the same path - so your project's
+gradle.properties keeps working.
+
+PINNING TO ONE SERIES
+
+There is a second form, "1.21-1.0.0", meaning "this mod only works on the 1.21
+series". ReMod then refuses to load it anywhere else.
+
+Only use it if your mod genuinely cannot work elsewhere. It costs you the
+one-jar property, and when a user hits the error ReMod will suggest the
+portable form to them:
+
+    Reason:
+      Incompatible ReMod API version
+      This mod is pinned to the ReMod API for Minecraft 1.20, but ReMod is
+      running the API for Minecraft 1.21.
+
+    What to do:
+      - Install the 1.20 build of My First Mod.
+      - Mod authors: declaring "remod_api": "1.0.0" instead of "1.20-1.0.0"
+        makes one jar work on every Minecraft version the mod supports.
+
+A pinned mod whose "minecraft" range reaches outside its pinned series is
+rejected when the manifest is read, because it could never load across the
+range it claims.
+
+THE BASELINE NUMBER ITSELF
+
+In both forms the baseline follows semantic versioning: your mod runs on any
 LATER baseline with the same major number.
 
-    Installed 1.21-1.4.0, mod needs 1.21-1.0.0    runs
-    Installed 1.21-1.0.0, mod needs 1.21-1.4.0    refused (needs newer ReMod)
-    Installed 1.21-1.0.0, mod needs 1.20-1.0.0    refused (wrong series)
-    Installed 1.21-2.0.0, mod needs 1.21-1.0.0    refused (breaking change)
+    Installed 1.4.0, mod needs 1.0.0    runs
+    Installed 1.0.0, mod needs 1.4.0    refused - needs a newer ReMod
+    Installed 2.0.0, mod needs 1.0.0    refused - breaking API change
 
-Each of those is reported with both versions named and a specific fix.
+Each is reported with both numbers named and a specific fix.
 
 WHICH DO I DECLARE?
 
-The one you compiled against. "remod create" fills it in for you, and the
-installer names the API jar after it, so the two cannot drift.
-
-    .minecraft/remod/api/remod-api-1.21-1.0.0.jar
-                                   ^^^^ ^^^^^
-                                   series baseline
+"remod create" writes the portable form for you, with a "minecraft" range
+covering everything ReMod supports. Narrow the range to what you have actually
+tested before you publish.
 
 
 ================================================================================

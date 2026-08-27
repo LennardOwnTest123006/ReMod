@@ -57,8 +57,26 @@ class ModResolverTest {
     }
 
     @Test
+    void aPortableModLoadsOnEveryMinecraftVersionItsRangeAllows() {
+        // One jar, every supported version: this is what the portable API form buys.
+        ResolutionResult result = resolve(
+                ModTestFixtures.manifest("wide").minecraft(">=1.17 <2.0").api("1.0.0"));
+
+        assertEquals(1, result.loadedCount(), result.errors().toString());
+        assertFalse(result.hasErrors());
+
+        // ...and the same manifest resolves against a different Minecraft version.
+        ResolutionResult onOlder = new ModResolver("1.19.4", ApiVersion.parse("1.19-1.0.0"),
+                Side.CLIENT).resolve(List.of(
+                        candidate(ModTestFixtures.manifest("wide")
+                                .minecraft(">=1.17 <2.0").api("1.0.0"))));
+        assertEquals(1, onOlder.loadedCount(), onOlder.errors().toString());
+    }
+
+    @Test
     void rejectsAModForAnotherMinecraftVersion() {
-        ResolutionResult result = resolve(ModTestFixtures.manifest("old").minecraft("1.19.x"));
+        ResolutionResult result = resolve(
+                ModTestFixtures.manifest("old").minecraft("1.19.x").api("1.0.0"));
 
         assertEquals(0, result.loadedCount());
         ModLoadError error = result.errors().get(0);
@@ -69,9 +87,11 @@ class ModResolverTest {
     }
 
     @Test
-    void rejectsAModBuiltAgainstAnotherApiSeriesAndSaysWhich() {
+    void rejectsAModPinnedToAnotherApiSeriesAndSaysWhich() {
+        // Claims 1.20 and 1.21 in 'minecraft' -- so the Minecraft check passes --
+        // but pins its API to 1.20, which is what the API check must catch.
         ResolutionResult result = resolve(ModTestFixtures.manifest("examplemod")
-                .name("ExampleMod").api("1.20-1.0.0"));
+                .name("ExampleMod").minecraft(">=1.20 <1.22").api("1.20-1.0.0"));
 
         ModLoadError error = result.errors().get(0);
         assertEquals(ModLoadError.Reason.INCOMPATIBLE_API, error.reason());
@@ -87,8 +107,19 @@ class ModResolverTest {
     }
 
     @Test
+    void suggestsThePortableFormWhenAModIsPinnedToTheWrongSeries() {
+        ResolutionResult result = resolve(ModTestFixtures.manifest("pinned")
+                .minecraft(">=1.20 <1.22").api("1.20-1.0.0"));
+
+        ModLoadError error = result.errors().get(0);
+        assertTrue(error.solutions().stream()
+                        .anyMatch(s -> s.contains("one jar work on every")),
+                error.solutions().toString());
+    }
+
+    @Test
     void rejectsAModNeedingANewerApiBaseline() {
-        ResolutionResult result = resolve(ModTestFixtures.manifest("future").api("1.21-1.9.0"));
+        ResolutionResult result = resolve(ModTestFixtures.manifest("future").api("1.9.0"));
 
         ModLoadError error = result.errors().get(0);
         assertEquals(ModLoadError.Reason.INCOMPATIBLE_API, error.reason());
@@ -99,7 +130,7 @@ class ModResolverTest {
     void acceptsAModBuiltAgainstAnOlderApiBaseline() {
         ApiVersion newer = ApiVersion.parse("1.21-1.4.0");
         ResolutionResult result = new ModResolver("1.21.4", newer, Side.CLIENT)
-                .resolve(List.of(candidate(ModTestFixtures.manifest("older").api("1.21-1.0.0"))));
+                .resolve(List.of(candidate(ModTestFixtures.manifest("older").api("1.0.0"))));
 
         assertEquals(1, result.loadedCount());
     }

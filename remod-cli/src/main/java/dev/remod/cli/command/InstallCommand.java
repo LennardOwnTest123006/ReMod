@@ -40,7 +40,28 @@ public final class InstallCommand implements CliCommand {
     @Override
     public String usage() {
         return "remod " + name() + " <minecraft-version> [--directory <path to .minecraft>]"
-                + (uninstall ? "" : " [--no-profile]");
+                + (uninstall ? "" : " [--no-profile] [--no-download]");
+    }
+
+    /**
+     * Looks the version up in Mojang's manifest, which carries the download
+     * URLs and checksums.
+     *
+     * <p>Returns {@code null} when the manifest is unreachable: the install
+     * then proceeds without downloading, and the launcher fetches Minecraft on
+     * first launch as it always would.</p>
+     */
+    private dev.remod.installer.manifest.MinecraftVersionEntry manifestEntry(
+            String version, Console console) {
+        try {
+            return dev.remod.installer.manifest.VersionManifestService.standard()
+                    .get().find(version).orElse(null);
+        } catch (RuntimeException e) {
+            console.print("  Could not reach the Minecraft version list, so Minecraft will"
+                    + " not be pre-downloaded.");
+            console.print("  The official launcher will download it on first launch.");
+            return null;
+        }
     }
 
     @Override
@@ -62,8 +83,11 @@ public final class InstallCommand implements CliCommand {
                 console.print(result.summary().trim());
                 return 0;
             }
+            boolean download = !commandLine.flag("no-download");
             InstallRequest request = InstallRequest.builder(version, directory)
                     .createLauncherProfile(!commandLine.flag("no-profile"))
+                    .downloadMinecraft(download)
+                    .manifestEntry(download ? manifestEntry(version, console) : null)
                     .build();
             InstallResult result = new ReModInstaller()
                     .install(request, (what, done, total) -> console.print("  " + what));

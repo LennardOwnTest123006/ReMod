@@ -148,8 +148,10 @@ class InstallerTest {
         InstallResult result = installerWithRealResources().install(request("1.21.4"), null);
 
         assertTrue(Files.isRegularFile(result.apiJar()), String.valueOf(result.apiJar()));
-        // Named after the Minecraft series, so a developer knows which API it is.
-        assertEquals("remod-api-1.21-1.0.0.jar", result.apiJar().getFileName().toString());
+        // Named after the baseline alone, with no Minecraft series: the jar is
+        // identical on every series, so a mod project's build file keeps
+        // working when ReMod is installed for another Minecraft version.
+        assertEquals("remod-api-1.0.0.jar", result.apiJar().getFileName().toString());
     }
 
     @Test
@@ -231,6 +233,16 @@ class InstallerTest {
         assertTrue(Files.isDirectory(result.modsDirectory()));
         assertTrue(result.summary().contains("Put your mods in"));
         assertTrue(result.summary().contains("ReMod 1.21.4"));
+    }
+
+    @Test
+    void theApiJarPathIsTheSameForEveryMinecraftVersion() {
+        InstallResult first = installerWithRealResources().install(request("1.21.4"), null);
+        InstallResult second = installerWithRealResources().install(request("1.20.1"), null);
+
+        // A mod project's remodApiPath keeps working across installs, which is
+        // what lets one project target every supported Minecraft version.
+        assertEquals(first.apiJar(), second.apiJar());
     }
 
     @Test
