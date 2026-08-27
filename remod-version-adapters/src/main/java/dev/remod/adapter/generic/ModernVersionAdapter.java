@@ -43,6 +43,13 @@ public final class ModernVersionAdapter implements MinecraftVersionAdapter {
                                    ClassLoader gameClassLoader) {
         String series = MinecraftVersions.series(minecraftVersion);
         String adapterId = series == null ? ID : ID + "-" + series;
-        return new ModernGameBridge(adapterId, minecraftVersion, side, gameClassLoader);
+        // Load the Mojang mappings for this version now, so anything the bridge
+        // reaches for later already has real names to work with.
+        MinecraftMappings.get(
+                java.nio.file.Paths.get(System.getProperty("remod.gameDir",
+                        dev.remod.common.io.Platform.defaultMinecraftDirectory().toString())),
+                minecraftVersion);
+        return new ModernGameBridge(adapterId, minecraftVersion, side, gameClassLoader,
+                dev.remod.transform.GameIntegration.installed());
     }
 }

@@ -45,6 +45,13 @@ public final class GameLocator {
     /**
      * Locates Minecraft's entry point.
      *
+     * <p>The loader passed here decides whether ReMod can affect the game at
+     * all. Given the ordinary application loader, Minecraft starts untouched.
+     * Given a transforming loader, every game class passes through ReMod's
+     * hooks on the way in -- so this call is where the transformation layer
+     * takes effect, and it must happen before anything else touches a
+     * Minecraft class.</p>
+     *
      * @return the located game, or {@code null} when Minecraft is not on the
      *         classpath -- which is the normal case under {@code remod test}
      */

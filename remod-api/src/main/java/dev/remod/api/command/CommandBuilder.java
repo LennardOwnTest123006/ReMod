@@ -164,6 +164,9 @@ public final class CommandBuilder {
             throw new IllegalStateException("/" + name + " declares both arguments and"
                     + " subcommands. Put the arguments on the subcommands instead.");
         }
+        // A body alongside subcommands IS allowed: it is how "/fly" toggles
+        // while "/fly on" also works, and Minecraft's own command tree supports
+        // exactly that shape.
     }
 
     private String generateUsage() {

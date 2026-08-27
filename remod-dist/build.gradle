@@ -4,6 +4,7 @@ dependencies {
     implementation project(':remod-cli')
     implementation project(':remod-installer')
     implementation project(':remod-version-adapters')
+    implementation project(':remod-transform')
     implementation project(':remod-compatibility')
     implementation project(':remod-loader')
     implementation project(':remod-api')
@@ -17,6 +18,7 @@ def bundledProjects = [
     ':remod-common',
     ':remod-api',
     ':remod-loader',
+    ':remod-transform',
     ':remod-version-adapters',
     ':remod-compatibility'
 ]
@@ -47,13 +49,39 @@ tasks.register('developerApiJar', Jar) {
     }
 }
 
+// The transform module needs ASM at runtime. The Minecraft launcher only
+// downloads the libraries named in the version JSON, and adding a Maven Central
+// coordinate there would make every launch depend on a third-party host being
+// reachable. Merging ASM into the installed jar keeps the install self-contained.
+tasks.register('transformWithAsmJar', Jar) {
+    group = 'build'
+    description = 'Builds remod-transform with ASM merged in, for installation as a library.'
+    archiveFileName = "remod-transform-${project.version}.jar"
+    destinationDirectory = layout.buildDirectory.dir('transform-fat')
+    dependsOn ':remod-transform:classes'
+    from project(':remod-transform').sourceSets.main.output
+    from {
+        project(':remod-transform').configurations.runtimeClasspath
+                .filter { it.name.startsWith('asm') }
+                .collect { zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
+}
+
 // Copies each module jar into the resource tree that ends up inside ReMod.jar.
 tasks.register('collectBundledLibraries', Copy) {
     group = 'build'
     description = 'Gathers the ReMod module jars that the installer will place in .minecraft.'
     into bundledLibsDir
+    dependsOn 'transformWithAsmJar'
     bundledProjects.each { path ->
         def module = project(path)
+        if (module.name == 'remod-transform') {
+            // Use the ASM-merged build rather than the plain module jar.
+            from(tasks.named('transformWithAsmJar'))
+            return
+        }
         dependsOn "${path}:jar"
         from(module.tasks.named('jar')) {
             rename { "${module.name}-${module.version}.jar" }

@@ -14,6 +14,7 @@ import dev.remod.api.service.GameBridge;
 import dev.remod.common.log.ReModLog;
 import dev.remod.common.log.ReModLogger;
 import dev.remod.loader.runtime.HeadlessClientApi;
+import dev.remod.transform.GameIntegration;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -75,9 +76,21 @@ public final class ModernGameBridge implements GameBridge {
     private final boolean mappedClassesVisible;
     private final boolean brigadierVisible;
     private final ClientApi client;
+    /** The transformation layer, when one was installed before the game started. */
+    private final GameIntegration integration;
 
     public ModernGameBridge(String adapterId, String minecraftVersion, Side side,
                             ClassLoader gameClassLoader) {
+        this(adapterId, minecraftVersion, side, gameClassLoader, null);
+    }
+
+    /**
+     * @param integration the installed transformation layer, or {@code null}
+     *                    when ReMod is running without one
+     */
+    public ModernGameBridge(String adapterId, String minecraftVersion, Side side,
+                            ClassLoader gameClassLoader, GameIntegration integration) {
+        this.integration = integration;
         this.adapterId = adapterId;
         this.minecraftVersion = minecraftVersion;
         this.side = side == null ? Side.COMMON : side;
@@ -144,9 +157,26 @@ public final class ModernGameBridge implements GameBridge {
         return notBound("creative tab", entry.id().toString());
     }
 
+    /**
+     * Hands a mod's command to the transformation layer.
+     *
+     * <p>Returns false when the command was only queued, which is the normal
+     * case: mods register during {@code INIT}, and Minecraft does not build its
+     * command dispatcher until later in its own startup. The layer registers
+     * everything it holds the moment the dispatcher appears.</p>
+     */
     @Override
     public boolean bindCommand(CommandSpec command, String ownerModId) {
-        return notBound("command", "/" + command.name() + " (from " + ownerModId + ")");
+        if (integration == null) {
+            return notBound("command", "/" + command.name() + " (from " + ownerModId + ")");
+        }
+        boolean live = integration.registerCommand(command, ownerModId,
+                () -> new ModCommandExecutor(command, ownerModId));
+        if (!live) {
+            LOG.debug(() -> "/" + command.name() + " from " + ownerModId
+                    + " is queued for Minecraft's command dispatcher");
+        }
+        return live;
     }
 
     @Override
@@ -171,10 +201,20 @@ public final class ModernGameBridge implements GameBridge {
         return Optional.ofNullable(client);
     }
 
+    /**
+     * What this bridge can actually do, claimed only where it is true.
+     *
+     * <p>{@link Capability#COMMANDS} appears only when a transformation layer
+     * was installed and Brigadier is reachable, because those are exactly the
+     * conditions under which a registered command reaches the game.</p>
+     */
     @Override
     public Set<Capability> capabilities() {
-        // Nothing binds into the running game yet, so nothing is claimed.
-        return Collections.unmodifiableSet(EnumSet.noneOf(Capability.class));
+        EnumSet<Capability> capabilities = EnumSet.noneOf(Capability.class);
+        if (integration != null && brigadierVisible) {
+            capabilities.add(Capability.COMMANDS);
+        }
+        return Collections.unmodifiableSet(capabilities);
     }
 
     /**

@@ -53,7 +53,12 @@ public final class ReModLaunch {
         LOG.info("ReMod " + ReModVersions.loaderVersion() + " starting");
         LOG.info("Game directory: " + paths.gameDirectory());
 
-        GameLocator game = GameLocator.locate(ReModLaunch.class.getClassLoader());
+        // Install the transformation layer, when this build has one, BEFORE
+        // any Minecraft class is touched: once the application loader has
+        // defined one, no transform can reach it any more.
+        ClassLoader gameLoader = GameIntegrationSupport.installIfPresent(
+                ReModLaunch.class.getClassLoader());
+        GameLocator game = GameLocator.locate(gameLoader);
         Side side = game != null ? game.side() : Side.COMMON;
         if (game == null) {
             LOG.warn("Minecraft was not found on the classpath. ReMod will initialise mods but"

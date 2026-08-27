@@ -36,13 +36,20 @@ and it is explicit about the one thing it does not yet do.
 - isolate failures, so one broken mod is one broken mod;
 - generate, build and test mod projects from the command line.
 
-**It does not, yet:** insert registered items, blocks and commands into
-Minecraft's *own* registries. That needs a mapping layer and a bytecode
-transformation layer, which ReMod does not ship. The adapter reports this
-honestly — `capabilities()` is empty, `isGameAttached()` tells the truth, and
-the installer says so after every install. The full explanation, and why this is
-an architectural gap rather than an oversight, is in
-[docs/version-support.md](docs/version-support.md).
+- **bind mod commands into Minecraft's own command tree**, so `/fly` is a real
+  command in game. ReMod loads the game through a transforming class loader and
+  injects a hook into whichever class holds Brigadier's dispatcher — found by
+  the *type* of its field, since Brigadier ships unobfuscated, so no mapping
+  file is needed for it;
+- **download Mojang's official mappings** for the installed version, so ReMod
+  can reach the game's own fields on an obfuscated install.
+
+**It does not, yet:** insert registered items, blocks and creative tabs into
+Minecraft's *own* registries. That has to happen inside the game's bootstrap
+before it freezes them, which is a larger injection than hooking a constructor.
+`capabilities()` reports `COMMANDS` only, and the log says what attached on any
+given launch. See [docs/version-support.md](docs/version-support.md), which is
+also explicit about which parts are verified by tests and which are not.
 
 Nothing in ReMod claims a capability it does not have.
 

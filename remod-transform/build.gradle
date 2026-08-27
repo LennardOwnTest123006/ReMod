@@ -1,0 +1,10 @@
+description = 'Class transformation and Mojang mapping support: the layer that lets ReMod reach into a running Minecraft.'
+
+dependencies {
+    api project(':remod-loader')
+    // ASM is the only third-party runtime dependency in ReMod, and it is
+    // confined to this module. Writing class bytes by hand is the alternative,
+    // and it is not a serious one.
+    api 'org.ow2.asm:asm:9.7'
+    api 'org.ow2.asm:asm-tree:9.7'
+}

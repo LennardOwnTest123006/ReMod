@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <pre>
- *   /fly                toggle your flight
+ *   /fly                toggle your flight (alias: /f)
  *   /fly on             enable it
  *   /fly off            disable it
  *   /fly speed &lt;value&gt;  set your flying speed (vanilla is 0.05)
@@ -91,10 +91,14 @@ public class FlyMod implements ReModMod {
 
     private void registerCommand(ReModContext context) {
         context.commands().register(CommandBuilder.create("fly")
+                .aliases("f")
                 .description("Toggle flight for yourself in your own world")
                 // Level 0: in your own single-player world you are already the
                 // owner, and the dedicated-server case is gated separately.
                 .permissionLevel(0)
+                // A bare "/fly" toggles; the subcommands are for when you want
+                // to be explicit.
+                .executes(command -> toggle(context, command))
                 .subcommand(CommandBuilder.create("on")
                         .description("Enable flight")
                         .executes(command -> set(context, command, true)))
@@ -111,15 +115,6 @@ public class FlyMod implements ReModMod {
                 .subcommand(CommandBuilder.create("status")
                         .description("Show your current flight state")
                         .executes(command -> status(context, command))));
-
-        // A bare "/fly" has to land somewhere. CommandBuilder requires a
-        // command to have either a body or subcommands, not both, so the
-        // toggle is registered as its own short alias.
-        context.commands().register(CommandBuilder.create("flytoggle")
-                .aliases("f")
-                .description("Toggle flight for yourself (same as /fly toggle)")
-                .permissionLevel(0)
-                .executes(command -> toggle(context, command)));
     }
 
     private void registerEvents(ReModContext context) {

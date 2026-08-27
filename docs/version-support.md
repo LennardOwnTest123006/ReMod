@@ -14,11 +14,11 @@ both read, so this page cannot drift away from the code.
 
 | Minecraft | Level | Installs a launcher profile | Starts the game | Loads mods | Binds content into the game |
 | --- | --- | --- | --- | --- | --- |
-| 1.21.x | Supported | yes | yes | yes | no — see below |
-| 1.20.x | Supported | yes | yes | yes | no — see below |
-| 1.19.x | Supported | yes | yes | yes | no — see below |
-| 1.18.x | Partial | yes | yes | yes | no |
-| 1.17.x | Partial | yes | yes | yes | no |
+| 1.21.x | Supported | yes | yes | yes | commands yes, content no |
+| 1.20.x | Supported | yes | yes | yes | commands yes, content no |
+| 1.19.x | Supported | yes | yes | yes | commands yes, content no |
+| 1.18.x | Partial | yes | yes | yes | commands yes, content no |
+| 1.17.x | Partial | yes | yes | yes | commands yes, content no |
 | 1.16.5 and older | Not supported | no | — | — | — |
 | Weekly snapshots (`24w14a`) | Not supported | no | — | — | — |
 | A release newer than this build knows | Partial | yes | yes | yes | no |
@@ -43,34 +43,70 @@ That is a working mod loader for anything a mod does in its own process. It is
 what the example mods and the generated MDK project exercise, and it is covered
 end to end by ReMod's tests.
 
-## What "binds content into the game" means, and why it is not active
+## Commands: bound, as of ReMod 1.1.0
 
-Registering an item so that it appears in Minecraft's own registry — so a player
-can hold it — requires calling into Minecraft's internals. Two things stand in
-the way, and neither is solved by writing more of the same kind of code:
+Commands registered by a mod are now inserted into Minecraft's own command tree,
+so `/fly` is a real command in game rather than "Unknown command".
 
-**1. Minecraft ships obfuscated.** A stock launcher install has no class called
-`net.minecraft.core.registries.BuiltInRegistries`; it is called something like
-`fx`, and the name changes every release. Mojang publishes official mappings,
-but applying them means remapping either the game or the mod at install time.
-ReMod does not ship a remapper.
+Three pieces make that work, and the first is the interesting one:
 
-**2. Minecraft freezes its registries during startup.** Even with the right
-names, registration has to happen inside the game's own bootstrap, not after it.
-Reaching that point means transforming bytecode before the game class loads —
-which is what Forge's ModLauncher and Fabric's Mixin bootstrap exist to do.
-ReMod is a plain launch wrapper with no transformation layer.
+**1. A transforming class loader.** ReMod's launch wrapper already runs before
+Minecraft. It now loads the game through its own class loader, which passes every
+game class through ReMod's transformers on the way in. No `-javaagent`, no
+patched jar on disk — the same approach Forge's ModLauncher and the old
+LaunchWrapper take.
 
-So the adapter probes for the mapped names at attach time and reports the
-result. `GameBridge.capabilities()` returns an empty set on every version,
-every `bind*` method returns `false`, and `context.game().isGameAttached()`
-tells a mod the truth. Nothing pretends.
+**2. Finding the command class without mappings.** Minecraft's `Commands` class
+is called something unpredictable in a stock jar. But it holds a field of type
+`com.mojang.brigadier.CommandDispatcher`, and **Brigadier ships unobfuscated** —
+it is a separate Mojang library whose names survive. So ReMod does not look for
+a name at all: it looks for the class declaring a field of that type, and injects
+a callback at the end of its constructor. That works on any version, obfuscated
+or not, with no mapping file involved.
 
-Closing this gap — a mapping layer plus a transformation layer — is the next
-milestone for ReMod, and it is the reason the `GameBridge` and
-`MinecraftVersionAdapter` interfaces exist in the shape they do: when it lands,
-it lands behind those interfaces, and no mod, and no part of the loader, has to
-change.
+**3. A Brigadier bridge.** A mod's `CommandSpec` becomes a real Brigadier node
+tree — literals, arguments, subcommands, aliases as redirects, permission levels
+as `requires(...)`. Built reflectively, so ReMod carries no Brigadier dependency
+to version-match against whatever Minecraft bundles.
+
+Mods register during `INIT`, long before Minecraft builds its dispatcher, so
+commands are queued and flushed the moment the hook fires.
+
+## Game internals: mappings
+
+Reaching a field like `Abilities.mayfly` still needs to know it is called `c` in
+this particular build. Mojang publishes that mapping per version and names it in
+the version JSON under `downloads.client_mappings`, so ReMod's installer now
+downloads it to `remod/mappings/<version>.txt` and resolves names through it.
+
+Absence is a supported state rather than a failure: a development environment
+runs deobfuscated, where the readable name *is* the runtime name and an empty
+mapping set falls through correctly.
+
+## What is still not bound
+
+**Items, blocks and creative tabs.** Registering content into Minecraft's own
+registries has to happen *inside* the game's bootstrap, before it freezes them —
+a different and larger injection than hooking a constructor. `bindItem`,
+`bindBlock` and `bindCreativeTab` still return `false`, and
+`capabilities()` reports `COMMANDS` only.
+
+## What is verified, and what is not
+
+Being precise about this matters more than the feature list.
+
+**Verified by tests** (268 of them): the class loader's delegation rules; hook
+injection into a class shaped like Minecraft's `Commands`; that the hook fires
+with the game's own dispatcher, fully built; that the Brigadier bridge produces
+the right node tree, including the two-overload `then` trap that silently broke
+every command with subcommands until a test caught it; the mapping parser.
+
+**Not verified**: that Minecraft's real `Commands` class has exactly that shape
+on every version; that the launcher's classpath lets ReMod's loader win the race
+for game classes; that the reflective field access into `Abilities` lands. None
+of this could be run against a real Minecraft here. The mechanism is sound and
+tested; whether it fits the real game is the open question, and the ReMod log
+says clearly which parts attached on any given launch.
 
 ## Why 1.17 is the floor
 

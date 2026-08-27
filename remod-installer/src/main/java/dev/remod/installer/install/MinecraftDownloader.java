@@ -136,11 +136,53 @@ public final class MinecraftDownloader {
                 + (size > 0 ? " (" + IOUtil.humanBytes(size) + ")" : ""));
         fetcher.downloadFile(url, clientJar, sha1, listener);
 
+        downloadMappings(paths, id, json, listener);
+
         boolean nothingFetched = hadJson && hadJar;
         LOG.info("Minecraft " + id + (nothingFetched
                 ? " was already downloaded"
                 : " downloaded to " + directory));
         return new Result(!hadJson, !hadJar, nothingFetched, sizeOf(clientJar));
+    }
+
+    /**
+     * Downloads Mojang's official mappings for this version.
+     *
+     * <p>This is what lets ReMod reach the game's own fields on an obfuscated
+     * install: without it, a class like {@code Abilities} is called something
+     * unguessable and features that need it are unavailable. Mojang publishes
+     * the file per version and names it in the version JSON, so ReMod is using
+     * the documented mechanism rather than shipping anything of Mojang's.</p>
+     *
+     * <p>A failure here is a warning, not an error. The game still runs and
+     * mods still load; only the features that need the game's internals are
+     * lost, and they report that themselves.</p>
+     */
+    private void downloadMappings(ReModPaths paths, String id, String versionJson,
+                                  ProgressListener listener) {
+        JsonObject mappings;
+        try {
+            mappings = Json.parseObject(versionJson).optObject("downloads")
+                    .optObject("client_mappings");
+        } catch (JsonException e) {
+            return;
+        }
+        String url = mappings.optString("url", null);
+        if (url == null) {
+            LOG.warn("Minecraft " + id + " publishes no official mappings, so ReMod cannot"
+                    + " reach the game's own fields on this version.");
+            return;
+        }
+        Path target = paths.remodDirectory().resolve("mappings").resolve(id + ".txt");
+        try {
+            listener.step("Downloading Mojang mappings for " + id);
+            fetcher.downloadFile(url, target, mappings.optString("sha1", null), listener);
+            LOG.info("Mojang mappings for " + id + " installed to " + target);
+        } catch (DownloadException e) {
+            LOG.warn("Could not download the Mojang mappings for " + id + " (" + e.getMessage()
+                    + "). Mods will load, but features that reach into the game will not"
+                    + " work until they are available.");
+        }
     }
 
     /**

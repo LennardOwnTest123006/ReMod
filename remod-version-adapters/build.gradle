@@ -2,4 +2,5 @@ description = 'Minecraft version adapters: one per family of Minecraft releases.
 
 dependencies {
     api project(':remod-loader')
+    api project(':remod-transform')
 }
