@@ -1,0 +1,64 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.example.myremodproject'
+version = project.property('modVersion')
+
+java {
+    // Matches the Java version Minecraft 1.21.4 runs on.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+// The ReMod API jar the installer placed in your Minecraft folder.
+// Override with:  ./gradlew build -PremodApiJar=/path/to/remod-api.jar
+def remodApiJar = project.findProperty('remodApiJar')
+        ?: "${project.property('remodApiPath')}"
+
+dependencies {
+    // compileOnly: ReMod provides the API at runtime, so it must NOT be
+    // bundled into your mod jar.
+    compileOnly files(remodApiJar)
+    testImplementation files(remodApiJar)
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('processResources') {
+    // Keeps remod.mod.json's version in step with gradle.properties.
+    inputs.property('modVersion', project.version)
+    filesMatching('remod.mod.json') {
+        expand(modVersion: project.version)
+    }
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'myremodproject'
+    manifest {
+        attributes(
+            'ReMod-Mod-Id': 'myremodproject',
+            'ReMod-Api-Version': '1.21-1.0.0'
+        )
+    }
+}
+
+// Copies the built mod straight into your ReMod mods folder.
+tasks.register('installMod', Copy) {
+    dependsOn tasks.jar
+    from tasks.jar
+    into project.property('remodModsPath')
+}

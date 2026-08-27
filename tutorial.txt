@@ -1,0 +1,1205 @@
+================================================================================
+                        ReMod - Mod Development Tutorial
+                     Writing Minecraft mods with ReMod 1.0.0
+================================================================================
+
+This guide takes you from a computer with nothing installed to a published mod.
+It assumes you have written a little Java, or are willing to copy code and read
+what it does. Every example here compiles.
+
+Before you start, one honest note about what ReMod 1.0.0 does. Mods load, run
+their whole lifecycle, register content into ReMod's registries, handle events,
+add commands, read configuration and draw HUD overlays. What does NOT happen yet
+is the final step of inserting registered items and blocks into Minecraft's own
+registries, so a registered item will not appear in your inventory in game. The
+reason, and what would be needed to change it, is in docs/version-support.md.
+Everything else in this tutorial works exactly as written.
+
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+  1.  Installing Java
+  2.  Installing ReMod
+  3.  Creating a ReMod project
+  4.  Project structure
+  5.  The main mod class
+  6.  ReMod metadata (remod.mod.json)
+  7.  Creating an item
+  8.  Creating a block
+  9.  Creating a command
+  10. Creating an event listener
+  11. Creating a keybind
+  12. Creating a HUD element
+  13. Creating configuration
+  14. Building a mod
+  15. Installing a mod
+  16. Debugging
+  17. Dependencies
+  18. Minecraft version compatibility
+  19. ReMod API versions
+  20. Publishing a mod
+  21. Quick reference
+
+
+================================================================================
+1. INSTALLING JAVA
+================================================================================
+
+You need a JDK (Java Development Kit) version 17 or newer. A JRE is not enough:
+a JRE runs Java, a JDK compiles it.
+
+Get one from https://adoptium.net (Eclipse Temurin, free) and install it.
+
+Check it worked. Open a terminal - Command Prompt or PowerShell on Windows,
+Terminal on macOS or Linux - and run:
+
+    java -version
+    javac -version
+
+Both should print 17 or higher. For example:
+
+    openjdk version "21.0.10" 2026-01-20
+    javac 21.0.10
+
+If "javac" is not found but "java" works, you installed a JRE. Install a JDK.
+
+Which Java version do you need? Minecraft 1.17 through 1.20.4 run on Java 17.
+Minecraft 1.20.5 and newer need Java 21. A newer JDK compiles for an older one,
+so a single JDK 21 installation covers everything. ReMod itself targets Java 17,
+so it runs on any of them.
+
+
+================================================================================
+2. INSTALLING REMOD
+================================================================================
+
+Step 1. Run the official Minecraft Launcher once and let it reach the login
+screen. This creates launcher_profiles.json, which ReMod needs. ReMod will not
+create that file itself, because it holds every installation you already have
+and writing a fresh one could throw them away.
+
+Step 2. Double-click ReMod.jar. The installer window opens.
+
+If double-clicking does nothing, your system has not associated .jar files with
+Java. Run it from a terminal instead:
+
+    java -jar ReMod.jar
+
+Step 3. Pick a Minecraft version from the list.
+
+The list comes live from Mojang's official version manifest, so it is always
+current. You can search it, filter it to releases or snapshots, and each version
+shows its ReMod support level. Versions ReMod cannot install are hidden by
+default - untick "Hide versions ReMod cannot install" to see them and why.
+
+Step 4. Click "Install ReMod".
+
+Step 5. Open the Minecraft Launcher. "ReMod 1.21.4" is now in your
+installations list, alongside your existing ones. Nothing you already had was
+changed.
+
+Prefer the command line? Everything the window does is also a command:
+
+    java -jar ReMod.jar install 1.21.4
+    java -jar ReMod.jar list installs
+    java -jar ReMod.jar uninstall 1.21.4
+
+WHERE THINGS GO
+
+ReMod keeps all its files under one folder inside your Minecraft directory:
+
+    .minecraft/
+      remod/
+        mods/       <- your mods go here
+        config/     <- one settings file per mod
+        data/       <- private storage per mod
+        logs/       <- remod.log, and the previous run archived
+        api/        <- the ReMod API jar you compile against
+      versions/
+        ReMod-1.21.4/     <- created by ReMod
+      libraries/
+        dev/remod/...     <- created by ReMod
+
+Your .minecraft folder is at:
+
+    Windows   %APPDATA%\.minecraft
+    macOS     ~/Library/Application Support/minecraft
+    Linux     ~/.minecraft
+
+Note that ReMod mods go in remod/mods, NOT in .minecraft/mods. That second
+folder belongs to Fabric, Forge, Quilt and NeoForge - keeping them separate is
+what lets ReMod sit alongside those loaders without either one trying to read
+the other's mods.
+
+
+================================================================================
+3. CREATING A REMOD PROJECT
+================================================================================
+
+One command:
+
+    java -jar ReMod.jar create MyFirstMod --package dev.example.myfirstmod
+
+That generates a complete, buildable project. The --package option sets your
+Java package; use something based on a domain you own, or dev.example if you are
+just learning.
+
+Other options:
+
+    --minecraft 1.20.1        which Minecraft version to target (default: latest)
+    --author "Your Name"      your name, written into the manifest
+    --directory some/path     where to create it (default: ./MyFirstMod)
+
+Now build it, to confirm everything is wired up before you change anything:
+
+    cd MyFirstMod
+    ./gradlew build
+
+On Windows use gradlew.bat instead of ./gradlew.
+
+The first run downloads Gradle, which takes a minute. After that it is seconds.
+
+If the build says it cannot find the ReMod API jar, open gradle.properties and
+point remodApiPath at the jar the installer reported when it finished. It is
+normally at .minecraft/remod/api/remod-api-1.21-1.0.0.jar.
+
+
+================================================================================
+4. PROJECT STRUCTURE
+================================================================================
+
+    MyFirstMod/
+      build.gradle            how to build the mod
+      settings.gradle         the project's name
+      gradle.properties       your mod version, and paths to ReMod
+      README.md
+      .gitignore
+      src/
+        main/
+          java/
+            dev/example/myfirstmod/
+              MyFirstMod.java          <- your mod's entrypoint
+          resources/
+            remod.mod.json             <- your mod's manifest
+            assets/myfirstmod/
+              lang/en_us.json          <- display names
+
+Two files matter most:
+
+  MyFirstMod.java   the code that runs
+  remod.mod.json    what ReMod reads to decide whether, and how, to run it
+
+Everything under src/main/resources is packaged into your mod jar and readable
+at runtime through context.resources().
+
+One thing worth understanding in build.gradle:
+
+    compileOnly files(remodApiJar)
+
+"compileOnly" means the API is used to compile your mod but is NOT bundled into
+your jar. ReMod provides it at runtime. If you changed this to
+"implementation", your jar would contain a second copy of every API class and
+things would break in confusing ways. Leave it as it is.
+
+
+================================================================================
+5. THE MAIN MOD CLASS
+================================================================================
+
+Every ReMod mod has at least one class implementing dev.remod.api.ReModMod:
+
+    package dev.example.myfirstmod;
+
+    import dev.remod.api.ReModContext;
+    import dev.remod.api.ReModMod;
+
+    public class MyFirstMod implements ReModMod {
+
+        public static final String MOD_ID = "myfirstmod";
+
+        @Override
+        public void onInitialize(ReModContext context) {
+            context.logger().info("Hello from " + context.modName());
+        }
+    }
+
+Two rules ReMod enforces, with a clear error if you break them:
+
+  - the class must be public, with a public no-argument constructor;
+  - it must be named in remod.mod.json's "entrypoints".
+
+Do your setup in onInitialize, not in the constructor. ReMod can report a
+failure in onInitialize properly, attributing it to your mod; a constructor that
+throws is much harder to explain.
+
+THE LIFECYCLE
+
+ReMod calls your mod at six points. Every mod finishes a phase before any mod
+starts the next one, which is what makes cross-mod interaction predictable.
+
+    onPreInitialize(context)     Config is available, nothing registered yet.
+                                 Read settings and decide what to register.
+
+    onInitialize(context)        The main phase. Register items, blocks,
+                                 commands, events, network channels.
+
+    onPostInitialize(context)    Every mod has finished onInitialize. Safe to
+                                 look up other mods' content.
+
+    onClientInitialize(context)  Client only. Keybinds, HUD layers, screens.
+                                 Never called on a dedicated server.
+
+    onServerInitialize(context)  Dedicated server only. Never called on a
+                                 client.
+
+    onShutdown(context)          Closing down. Save state, close files.
+
+Only onInitialize is required; the rest have empty defaults, so override just
+the ones you need.
+
+WHAT THE CONTEXT GIVES YOU
+
+    context.modId()          your mod id
+    context.modName()        your display name
+    context.modVersion()     your version
+    context.logger()         a logger tagged with your mod id
+    context.side()           CLIENT, DEDICATED_SERVER or COMMON
+    context.game()           Minecraft version, adapter, is a game attached
+    context.events()         subscribe to events
+    context.registries()     items, blocks, creative tabs
+    context.commands()       register commands
+    context.config()         your settings file
+    context.client()         keybinds and HUD - EMPTY on a dedicated server
+    context.network()        client/server messaging
+    context.resources()      files inside your own jar
+    context.dataDirectory()  a private folder for your data
+    context.isModLoaded(id)  is another mod present?
+
+Anything registered through your context is attributed to your mod, which is how
+ReMod can report "simplemod registered 4 items" and blame the right mod when
+something goes wrong.
+
+
+================================================================================
+6. REMOD METADATA (remod.mod.json)
+================================================================================
+
+This file sits at the root of your mod jar and tells ReMod everything it needs
+to decide whether your mod can run.
+
+    {
+      "schema": 1,
+      "id": "myfirstmod",
+      "name": "My First Mod",
+      "version": "${modVersion}",
+      "author": "Your Name",
+      "description": "My first ReMod mod.",
+      "minecraft": "1.21.x",
+      "remod_api": "1.21-1.0.0",
+      "side": "common",
+      "entrypoints": ["dev.example.myfirstmod.MyFirstMod"],
+      "dependencies": []
+    }
+
+${modVersion} is filled in from gradle.properties when you build, so your
+manifest and your build can never disagree about the version.
+
+REQUIRED FIELDS
+
+  id            Lower case, 2-64 characters, a-z 0-9 _ - and starting with a
+                letter. This is also the namespace for everything you register,
+                so choose it once and keep it.
+
+  version       Your mod's version. Use semantic versioning: 1.0.0, 1.2.3.
+
+  minecraft     A RANGE of Minecraft versions you support (see section 18).
+
+  remod_api     The EXACT ReMod API you compiled against (see section 19).
+
+  entrypoints   One or more classes implementing ReModMod.
+
+OPTIONAL FIELDS
+
+  name          Display name. Defaults to the id.
+  author        Your name. "authors": [...] for several people.
+  description   One or two sentences.
+  side          "client", "server" or "common". Default "common".
+  license       e.g. "MIT".
+  homepage      Your mod's page.
+  issues        Your bug tracker. ReMod shows this to users when your mod
+                crashes, which is a very good reason to fill it in.
+
+SIDES
+
+Getting the side wrong is the most common cause of a mod crashing on a server.
+
+  "common"   runs on both. The default. Use it unless you know otherwise.
+  "client"   client only. Use it if your mod touches keybinds, the HUD, or
+             anything a player sees. ReMod refuses to load it on a server
+             rather than letting it crash there.
+  "server"   dedicated server only.
+
+If your mod is mostly common with a little client code, keep "common" and put
+the client parts in onClientInitialize, guarded by context.client(). ReMod never
+loads the client API on a server, so a common mod written this way is safe.
+
+STRICT JSON
+
+No comments, no trailing commas. A typo is a hard error - but ReMod tells you
+the file, the field and what it expected, so it is quick to fix:
+
+    ReMod Mod Loading Error
+
+    Mod:
+      My First Mod (myfirstmod 1.0.0)
+      myfirstmod-1.0.0.jar
+
+    Reason:
+      Incompatible ReMod API version
+      This mod was built against the ReMod API for Minecraft 1.20, but ReMod
+      is running the API for Minecraft 1.21.
+
+    Expected:
+      1.20-1.0.0
+
+    Installed:
+      1.21-1.0.0
+
+    What to do:
+      - Install the 1.21 build of My First Mod.
+
+
+================================================================================
+7. CREATING AN ITEM
+================================================================================
+
+    import dev.remod.api.game.Identifier;
+    import dev.remod.api.game.Text;
+    import dev.remod.api.game.TextColor;
+    import dev.remod.api.registry.ItemDefinition;
+    import dev.remod.api.registry.Rarity;
+    import dev.remod.api.registry.RegistryEntry;
+
+    public class MyFirstMod implements ReModMod {
+
+        public static final String MOD_ID = "myfirstmod";
+
+        private RegistryEntry<ItemDefinition> ruby;
+
+        @Override
+        public void onInitialize(ReModContext context) {
+            ruby = context.registries().items().register(
+                    ItemDefinition.builder(Identifier.of(MOD_ID, "ruby"))
+                            .displayName(Text.literal("Ruby").color(TextColor.RED))
+                            .maxStackSize(64)
+                            .rarity(Rarity.RARE)
+                            .build());
+
+            context.logger().info("Registered " + ruby.id());
+        }
+    }
+
+Identifier.of(MOD_ID, "ruby") produces "myfirstmod:ruby". Always use your own
+mod id as the namespace.
+
+Everything a builder offers:
+
+    .displayName(Text)          shown in game
+    .maxStackSize(1..99)        default 64
+    .maxDamage(int)             durability; also forces stack size to 1
+    .rarity(Rarity)             COMMON, UNCOMMON, RARE, EPIC
+    .creativeTab(Identifier)    which tab it appears in
+    .fireResistant(boolean)     survives lava, like netherite
+    .food(new FoodProperties(nutrition, saturation, alwaysEdible))
+
+An edible item:
+
+    ItemDefinition.builder(Identifier.of(MOD_ID, "ruby_apple"))
+            .displayName(Text.literal("Ruby Apple"))
+            .maxStackSize(16)
+            .food(new ItemDefinition.FoodProperties(6, 0.8f, true))
+            .build();
+
+WHY A "DEFINITION" AND NOT A MINECRAFT Item?
+
+Because Minecraft's own item class changes. In 1.20.5 item properties moved into
+a data-component map, which broke a great many mods. A mod written against
+ItemDefinition would not have had to change: ReMod's version adapter is what
+translates the description into whatever the running Minecraft build wants.
+
+WHEN CAN YOU REGISTER?
+
+Only during onInitialize (the INIT phase). Registering later throws with an
+explanation, rather than silently registering something the game will never see
+- Minecraft freezes its own registries once it has started.
+
+
+================================================================================
+8. CREATING A BLOCK
+================================================================================
+
+    import dev.remod.api.registry.BlockDefinition;
+
+    rubyBlock = context.registries().blocks().register(
+            BlockDefinition.builder(Identifier.of(MOD_ID, "ruby_block"))
+                    .displayName(Text.literal("Block of Ruby"))
+                    .strength(5.0f, 6.0f)
+                    .material(BlockDefinition.MaterialKind.METAL)
+                    .soundGroup(BlockDefinition.SoundGroup.METAL)
+                    .requiresTool(true)
+                    .build());
+
+    .strength(hardness, resistance)   mining time, blast resistance
+    .hardness(float)                  vanilla stone is 1.5, obsidian is 50
+    .resistance(float)                vanilla stone is 6, obsidian is 1200
+    .lightLevel(0..15)                light emitted
+    .requiresTool(boolean)            drops nothing without the right tool
+    .material(MaterialKind)           STONE METAL WOOD DIRT SAND GLASS WOOL
+                                      PLANT ICE
+    .soundGroup(SoundGroup)           STONE METAL WOOD GRAVEL GLASS WOOL
+                                      GRASS SAND SNOW
+    .withItem(boolean)                also register a block item (default true)
+    .creativeTab(Identifier)
+
+A glowing block:
+
+    BlockDefinition.builder(Identifier.of(MOD_ID, "ruby_lamp"))
+            .displayName(Text.literal("Ruby Lamp"))
+            .strength(0.3f, 0.3f)
+            .lightLevel(15)
+            .soundGroup(BlockDefinition.SoundGroup.GLASS)
+            .requiresTool(false)
+            .build();
+
+A CREATIVE TAB FOR YOUR CONTENT
+
+    import dev.remod.api.registry.CreativeTabDefinition;
+
+    context.registries().creativeTabs().register(
+            CreativeTabDefinition.builder(Identifier.of(MOD_ID, "general"))
+                    .title(Text.literal("My First Mod"))
+                    .icon(ruby.id())
+                    .add(ruby.id())
+                    .add(rubyBlock.id())
+                    .build());
+
+
+================================================================================
+9. CREATING A COMMAND
+================================================================================
+
+    import dev.remod.api.command.ArgumentType;
+    import dev.remod.api.command.CommandBuilder;
+    import dev.remod.api.command.CommandException;
+
+    context.commands().register(CommandBuilder.create("myfirstmod")
+            .aliases("mfm")
+            .description("My First Mod utilities")
+            .executes(command -> {
+                command.source().sendFeedback(Text.literal("Hello!"));
+                return 1;   // 0 means "did nothing"
+            }));
+
+WITH ARGUMENTS
+
+    context.commands().register(CommandBuilder.create("greet")
+            .description("Greet a player")
+            .permissionLevel(0)
+            .argument("target", ArgumentType.PLAYER)
+            .optionalArgument("times", ArgumentType.INTEGER, "1")
+            .executes(command -> {
+                String target = command.getString("target");
+                int times = command.has("times") ? command.getInt("times") : 1;
+                if (times > 10) {
+                    // Shown to the caller in red. Any OTHER exception is
+                    // treated as a bug in your mod.
+                    throw new CommandException("At most 10 greetings, please.");
+                }
+                for (int i = 0; i < times; i++) {
+                    command.source().sendFeedback(
+                            Text.literal("Hello, " + target + "!"));
+                }
+                return times;
+            }));
+
+Argument types: STRING, GREEDY_STRING (the rest of the line - must be last),
+INTEGER, DOUBLE, BOOLEAN, PLAYER.
+
+WITH SUBCOMMANDS
+
+    context.commands().register(CommandBuilder.create("myfirstmod")
+            .description("My First Mod")
+            .subcommand(CommandBuilder.create("info")
+                    .executes(command -> { ... return 1; }))
+            .subcommand(CommandBuilder.create("reload")
+                    .permissionLevel(2)
+                    .executes(command -> {
+                        context.config().load();
+                        command.source().sendFeedback(
+                                Text.literal("Config reloaded."));
+                        return 1;
+                    })));
+
+A command has either arguments or subcommands, not both - put the arguments on
+the subcommands.
+
+PERMISSION LEVELS
+
+Minecraft's own 0-4 scale:
+
+    0   everyone
+    1   moderator-ish
+    2   the usual threshold for cheat-like commands
+    3   admin
+    4   full operator; the server console is always 4
+
+VALIDATION
+
+CommandBuilder checks your command when you call build(), and tells you plainly
+if it cannot work - a GREEDY_STRING that is not last, a required argument after
+an optional one, two arguments with the same name, or a command with neither a
+body nor subcommands. Better to hear it now than to find out in game.
+
+
+================================================================================
+10. CREATING AN EVENT LISTENER
+================================================================================
+
+    import dev.remod.api.event.player.PlayerJoinEvent;
+
+    context.events().subscribe(PlayerJoinEvent.class, event ->
+            event.player().sendMessage(
+                    Text.literal("Welcome, " + event.player().name() + "!")));
+
+Subscribing to a supertype receives every subtype, so subscribing to Event
+receives everything.
+
+THE EVENTS
+
+  Lifecycle   ModsLoadedEvent, GameStartingEvent, GameStoppingEvent
+  Tick        ClientTickEvent, ServerTickEvent, WorldTickEvent
+  Player      PlayerJoinEvent, PlayerQuitEvent, PlayerChatEvent (cancellable),
+              PlayerRespawnEvent
+  World       WorldLoadEvent, WorldUnloadEvent, WorldSaveEvent
+  Client      ClientStartedEvent, HudRenderEvent, KeyInputEvent, ScreenOpenEvent
+  Server      ServerStartingEvent, ServerStartedEvent, ServerStoppingEvent,
+              CommandRegistrationEvent
+  Resource    ResourceReloadEvent
+
+PRIORITY
+
+    import dev.remod.api.event.EventPriority;
+
+    context.events().subscribe(PlayerChatEvent.class, EventPriority.HIGHEST,
+            event -> { ... });
+
+HIGHEST runs first, LOWEST last. Register at HIGHEST to filter something before
+other mods see it; at LOWEST to have the last word.
+
+CANCELLING
+
+    context.events().subscribe(PlayerChatEvent.class, event -> {
+        if (event.message().contains("spoiler")) {
+            event.cancel();
+            event.player().sendMessage(Text.literal("Message blocked."));
+        }
+    });
+
+Cancelling does not stop later listeners running - they can see it was cancelled
+and even un-cancel it. What it does is tell ReMod not to perform the default
+action.
+
+UNSUBSCRIBING, AND ONE-SHOT LISTENERS
+
+    Subscription sub = context.events().subscribe(ServerTickEvent.class, ...);
+    sub.unsubscribe();
+
+    context.events().subscribeOnce(WorldLoadEvent.class, event -> {
+        // runs for the first world only, then removes itself
+    });
+
+TICK EVENTS ARE HOT
+
+ClientTickEvent and ServerTickEvent fire twenty times a second. Anything slow
+there is felt by the player. Throttle with every():
+
+    context.events().subscribe(ServerTickEvent.class, event -> {
+        if (event.every(200)) {          // once every ten seconds
+            doSomethingExpensive();
+        }
+    });
+
+IF YOUR LISTENER THROWS
+
+ReMod catches it, logs it against your mod, and carries on. If the same listener
+throws five times it is disabled - otherwise a broken tick handler writes twenty
+stack traces a second. Your mod stays loaded and its other listeners keep
+running.
+
+
+================================================================================
+11. CREATING A KEYBIND
+================================================================================
+
+Client only, so this goes in onClientInitialize.
+
+    import dev.remod.api.client.ClientApi;
+    import dev.remod.api.client.Key;
+    import dev.remod.api.client.Keybind;
+    import dev.remod.api.event.tick.ClientTickEvent;
+    import dev.remod.api.event.tick.TickPhase;
+
+    private Keybind toggle;
+
+    @Override
+    public void onClientInitialize(ReModContext context) {
+        ClientApi client = context.client().orElse(null);
+        if (client == null) {
+            return;   // no client, e.g. under 'remod test'
+        }
+
+        toggle = client.keybinds().register(
+                "myfirstmod.toggle", Key.H, "My First Mod");
+
+        context.events().subscribe(ClientTickEvent.class, event -> {
+            if (event.phase() != TickPhase.END) {
+                return;
+            }
+            // A "while" loop, not "if": a key held across several ticks queues
+            // several presses, and you want each handled once.
+            while (toggle.wasPressed()) {
+                context.logger().info("Toggled!");
+            }
+        });
+    }
+
+The keybind appears in Minecraft's own Controls screen under the category you
+gave, so players can rebind it. Use "<modid>.<action>" as the id.
+
+Key has the letters, digits, F1-F12, arrows, modifiers and the common editing
+keys. Use Key.UNKNOWN for a binding with no default, which players must set
+themselves.
+
+
+================================================================================
+12. CREATING A HUD ELEMENT
+================================================================================
+
+    import dev.remod.api.client.gui.DrawContext;
+    import dev.remod.api.client.gui.HudRegistry;
+
+    private HudRegistry.HudHandle overlay;
+
+    @Override
+    public void onClientInitialize(ReModContext context) {
+        ClientApi client = context.client().orElse(null);
+        if (client == null) {
+            return;
+        }
+        overlay = client.hud().register("myfirstmod:overlay", this::render);
+    }
+
+    private void render(DrawContext draw) {
+        Text line = Text.literal("My First Mod").color(TextColor.GREEN);
+        int width = draw.textWidth(line) + 8;
+        int height = draw.lineHeight() + 6;
+
+        draw.fill(6, 6, width, height, 0x80000000);        // ARGB
+        draw.drawBorder(6, 6, width, height, 0x40FFFFFF);
+        draw.drawText(line, 10, 9, 0xFFFFFFFF);
+    }
+
+What DrawContext offers:
+
+    screenWidth(), screenHeight()      in scaled GUI pixels
+    partialTick()                      for smooth animation
+    drawText(text, x, y, argb)         with a drop shadow, like vanilla
+    drawTextPlain(...)                 without
+    drawCenteredText(text, cx, y, argb)
+    fill(x, y, w, h, argb)
+    drawBorder(x, y, w, h, argb)
+    textWidth(text), lineHeight()
+
+Colours are ARGB integers: 0xFFFFFFFF is opaque white, 0x80000000 is
+half-transparent black.
+
+Show and hide it:
+
+    overlay.setVisible(false);
+    overlay.remove();
+
+RENDERING RUNS EVERY FRAME. Not twenty times a second - every frame. Do not
+allocate, format strings or do I/O in there. Compute values in a tick listener
+and store them in a field; render only draws.
+
+
+================================================================================
+13. CREATING CONFIGURATION
+================================================================================
+
+Declare a schema, and ReMod generates the file with comments and defaults on
+first run, and protects you from bad values.
+
+    import dev.remod.api.config.ConfigSpec;
+
+    private static final ConfigSpec CONFIG = ConfigSpec.builder()
+            .comment("Shown to players when they join.")
+            .define("greeting", "Welcome!")
+            .comment("Set to false to stay quiet.")
+            .define("enabled", true)
+            .comment("How far the scanner reaches, in blocks.")
+            .defineInRange("scanRadius", 16, 1, 128)
+            .comment("Items this mod ignores.")
+            .defineList("ignoredItems", List.of("minecraft:dirt"))
+            .comment("How loudly to report.")
+            .defineEnum("verbosity", "normal", List.of("quiet", "normal", "loud"))
+            .build();
+
+    @Override
+    public void onPreInitialize(ReModContext context) {
+        context.config().withSpec(CONFIG);
+    }
+
+    @Override
+    public void onInitialize(ReModContext context) {
+        if (context.config().getBoolean("enabled")) {
+            context.logger().info(context.config().getString("greeting"));
+        }
+        int radius = context.config().getInt("scanRadius");
+    }
+
+The generated file, at .minecraft/remod/config/myfirstmod.json:
+
+    {
+      "_comment_greeting": [
+        "Shown to players when they join.",
+        "Accepts a string. Default: Welcome!"
+      ],
+      "greeting": "Welcome!",
+      "_comment_enabled": [
+        "Set to false to stay quiet.",
+        "Accepts true or false. Default: true"
+      ],
+      "enabled": true
+    }
+
+READS NEVER THROW
+
+If a user puts a letter in a number field, or a value outside the declared
+range, you get the default and ReMod logs it once naming the key. Your mod does
+not crash and the world is not lost. The user's value is left in the file so
+they can see what they typed.
+
+WRITING
+
+    context.config().set("greeting", "Hi there").save();
+
+set() validates against the spec and throws IllegalArgumentException with an
+explanation if the value is wrong - that one IS a bug in your code, so it is
+worth hearing about.
+
+    context.config().load();               // reload from disk
+    context.config().resetToDefaults();    // reset and save
+
+MOD DATA
+
+Configuration is for user settings. For data your mod owns, use its private
+directory:
+
+    Path stats = context.dataDirectory().resolve("stats.json");
+
+That is .minecraft/remod/data/myfirstmod/. Never write inside a world save.
+
+
+================================================================================
+14. BUILDING A MOD
+================================================================================
+
+    ./gradlew build
+
+The jar appears in build/libs/myfirstmod-1.0.0.jar.
+
+Or go through ReMod, which also checks the result:
+
+    java -jar ReMod.jar build
+
+    Build succeeded
+    ---------------
+      Mod jar:  /home/you/MyFirstMod/build/libs/myfirstmod-1.0.0.jar
+        Manifest: myfirstmod 1.0.0 (Minecraft 1.21.x, API 1.21-1.0.0)
+
+That last line is worth the extra step: it confirms your manifest was packaged
+and parses. A jar with no remod.mod.json builds fine and then does nothing.
+
+BUMPING YOUR VERSION
+
+Edit gradle.properties:
+
+    modVersion=1.1.0
+
+The manifest picks it up automatically at build time.
+
+COMMON BUILD PROBLEMS
+
+  "cannot find symbol: class ReModMod"
+      remodApiPath in gradle.properties does not point at a real API jar.
+      Install ReMod for your Minecraft version, or fix the path.
+
+  "class file has wrong version"
+      Your JDK is older than 17. Install a newer one.
+
+  The build works but the jar has no remod.mod.json
+      The file must be at src/main/resources/remod.mod.json exactly.
+
+
+================================================================================
+15. INSTALLING A MOD
+================================================================================
+
+Copy the jar into .minecraft/remod/mods/, or let Gradle do it:
+
+    ./gradlew installMod
+
+Then start Minecraft through the ReMod installation in the launcher.
+
+CHECK IT LOADS WITHOUT STARTING MINECRAFT
+
+This is the fastest loop you have while developing:
+
+    java -jar ReMod.jar test --mods build/libs
+
+    Loaded mods
+    -----------
+      My First Mod 1.0.0 (myfirstmod)
+          items: myfirstmod:ruby
+          blocks: myfirstmod:ruby_block
+          commands: /myfirstmod
+
+Two seconds instead of a minute, and it proves your manifest is valid, your
+entrypoint is found, your initialisation runs without throwing, and your
+registrations happened.
+
+SEE WHAT IS INSTALLED
+
+    java -jar ReMod.jar list mods
+
+TURNING A MOD OFF WITHOUT DELETING IT
+
+Rename it to end in .disabled:
+
+    myfirstmod-1.0.0.jar.disabled
+
+
+================================================================================
+16. DEBUGGING
+================================================================================
+
+THE LOG
+
+    .minecraft/remod/logs/remod.log
+
+The previous run is archived rather than overwritten, so a crash is never lost.
+
+    [12:04:11.201] [ReMod/INFO] Starting ReMod 1.0.0
+    [12:04:11.203] [ReMod/INFO] Minecraft version: 1.21.4 (client)
+    [12:04:11.210] [ReMod/INFO] Found 3 ReMod mods
+    [12:04:11.480] [myfirstmod/INFO] Hello from My First Mod
+    [12:04:11.502] [ReMod/INFO] Loaded 3 mods in 291 ms
+    [12:04:11.502] [ReMod/INFO] ReMod startup completed
+
+Every line names which mod produced it.
+
+LOGGING FROM YOUR MOD
+
+    context.logger().info("Something happened");
+    context.logger().warn("Something odd");
+    context.logger().error("Something broke", exception);
+
+    // Lazily built: nothing is formatted when debug is switched off.
+    context.logger().debug(() -> "Expensive detail: " + compute());
+
+MORE DETAIL
+
+    java -jar ReMod.jar test --mods build/libs --verbose
+
+Or add -Dremod.logLevel=DEBUG to the JVM arguments of your ReMod installation in
+the launcher.
+
+READING AN ERROR
+
+ReMod never reports a bare NullPointerException. Every failure names the mod,
+the reason, what was expected, what was found and what to do:
+
+    ReMod Mod Loading Error
+
+    Mod:
+      My First Mod (myfirstmod 1.0.0)
+      myfirstmod-1.0.0.jar
+
+    Reason:
+      Missing dependency
+      Requires the mod 'baselib', which is not installed or failed to load.
+
+    Expected:
+      baselib >=2.0
+
+    Found:
+      not installed
+
+    What to do:
+      - Install baselib >=2.0 into the ReMod mods folder.
+      - Or remove My First Mod if you do not need it.
+
+WHEN THE GAME CRASHES
+
+Move everything out of remod/mods and add mods back a few at a time. The log
+names the mod that threw, and its "issues" URL if the author filled it in.
+
+WHEN ONE MOD BREAKS
+
+It does not take the others down. A mod that throws during a lifecycle phase is
+marked failed, its registrations and listeners are withdrawn, and every other
+mod carries on.
+
+WHY IS MY ITEM NOT IN THE GAME?
+
+Expected in ReMod 1.0.0. Mods load and run, and registrations are recorded, but
+content is not yet inserted into Minecraft's own registries. See
+docs/version-support.md for the reason and what would be needed. Use
+"remod test" to confirm your registration is happening.
+
+
+================================================================================
+17. DEPENDENCIES
+================================================================================
+
+    "dependencies": ["baselib@>=2.0 <3.0"],
+    "optional_dependencies": ["prettyhud"],
+    "incompatible": ["oldlib@<1.0"]
+
+  dependencies            must be present, and satisfy the range, or your mod
+                          does not load
+  optional_dependencies   loaded before yours when present; ignored when absent
+  incompatible            if present, your mod refuses to load
+
+RANGE SYNTAX
+
+    *                any version
+    1.2.3            exactly that
+    1.21.x           any patch of 1.21
+    >=1.20 <1.22     both must hold
+    ~1.21.2          >=1.21.2 and <1.22.0
+    ^1.21.2          >=1.21.2 and <2.0.0
+    [1.20,1.22)      the Maven form
+    1.20.x || 1.21.x either
+
+USING AN OPTIONAL DEPENDENCY
+
+    @Override
+    public void onPostInitialize(ReModContext context) {
+        if (context.isModLoaded("prettyhud")) {
+            context.logger().info("PrettyHUD found; enabling integration.");
+            setUpIntegration(context);
+        }
+    }
+
+POST_INIT, not INIT, because by then every mod has finished registering.
+
+LOAD ORDER
+
+ReMod sorts mods so dependencies load first. A circular dependency is reported
+and all the mods in the loop are rejected - so if two mods need each other, one
+of the dependencies should be optional.
+
+NEVER BUNDLE THE REMOD API
+
+build.gradle uses compileOnly for it. Keep it that way.
+
+
+================================================================================
+18. MINECRAFT VERSION COMPATIBILITY
+================================================================================
+
+The "minecraft" field is a RANGE:
+
+    "minecraft": "1.21.x"                supports 1.21, 1.21.1, ... 1.21.9
+    "minecraft": ">=1.20 <1.22"          1.20.x and 1.21.x
+    "minecraft": "1.20.x || 1.21.x"      the same, spelled differently
+    "minecraft": "1.21.4"                that one version only
+
+Be honest about it. Claiming a wide range you have not tested means users hit
+your bugs, not a clear "not supported" message.
+
+WHAT REMOD SUPPORTS
+
+    1.21.x, 1.20.x, 1.19.x    supported
+    1.18.x, 1.17.x            partial
+    1.16.5 and older          not supported
+    weekly snapshots          not supported
+
+Pre-releases and release candidates (1.21-pre1, 1.20.2-rc2) are supported by
+their series. Weekly snapshots are refused because an id like 24w14a does not
+say which release it belongs to, so ReMod cannot know which adapter applies -
+guessing would mean claiming a compatibility it cannot honour.
+
+SUPPORTING SEVERAL VERSIONS
+
+The ReMod API version is tied to a Minecraft series, so one jar cannot target
+1.20 and 1.21 at once. Ship one build per series, as other loaders' mods do:
+
+    mymod-1.0.0-mc1.20.jar
+    mymod-1.0.0-mc1.21.jar
+
+Check the version at runtime when behaviour must differ:
+
+    String series = context.game().minecraftSeries();   // "1.21"
+    String exact  = context.game().minecraftVersion();  // "1.21.4"
+
+
+================================================================================
+19. REMOD API VERSIONS
+================================================================================
+
+Three different numbers. Keeping them apart matters:
+
+    ReMod version       1.0.0        the loader and installer
+    API baseline        1.0.0        the shape of the API
+    ReMod API version   1.21-1.0.0   a baseline for one Minecraft series
+    Minecraft version   1.21.4       the game
+
+Your manifest declares the API version:
+
+    "remod_api": "1.21-1.0.0"
+
+READ IT AS TWO HALVES
+
+    1.21   the Minecraft series - must match EXACTLY
+    1.0.0  the API baseline - follows semantic versioning
+
+The Minecraft series must match exactly because Minecraft's internals differ
+between series and an API built for one is not substitutable for another.
+
+Within a series, the baseline follows semantic versioning: your mod runs on any
+LATER baseline with the same major number.
+
+    Installed 1.21-1.4.0, mod needs 1.21-1.0.0    runs
+    Installed 1.21-1.0.0, mod needs 1.21-1.4.0    refused (needs newer ReMod)
+    Installed 1.21-1.0.0, mod needs 1.20-1.0.0    refused (wrong series)
+    Installed 1.21-2.0.0, mod needs 1.21-1.0.0    refused (breaking change)
+
+Each of those is reported with both versions named and a specific fix.
+
+WHICH DO I DECLARE?
+
+The one you compiled against. "remod create" fills it in for you, and the
+installer names the API jar after it, so the two cannot drift.
+
+    .minecraft/remod/api/remod-api-1.21-1.0.0.jar
+                                   ^^^^ ^^^^^
+                                   series baseline
+
+
+================================================================================
+20. PUBLISHING A MOD
+================================================================================
+
+BEFORE YOU PUBLISH
+
+  [ ] The version in gradle.properties is bumped.
+  [ ] "minecraft" honestly states what you tested.
+  [ ] "remod_api" matches what you built against.
+  [ ] "side" is right - client-only mods marked "client".
+  [ ] "issues" points at your bug tracker. Users see it when your mod crashes.
+  [ ] "license" is set.
+  [ ] "java -jar ReMod.jar test --mods build/libs" is clean.
+  [ ] You have actually launched the game with it.
+
+BUILD THE RELEASE
+
+    ./gradlew clean build
+
+Publish build/libs/yourmod-1.0.0.jar. Not the -sources jar.
+
+NAMING
+
+    mymod-1.2.0-mc1.21.jar
+
+Version and Minecraft version both in the file name saves everyone confusion.
+
+WRITE A README
+
+Say what the mod does, which Minecraft versions it supports, which ReMod version
+it needs, how to install it (the ReMod mods folder, not .minecraft/mods), its
+configuration options, and its licence.
+
+VERSIONING
+
+Semantic versioning, from your users' point of view:
+
+    1.0.0 -> 1.0.1   a bug fix
+    1.0.0 -> 1.1.0   a new feature, nothing broken
+    1.0.0 -> 2.0.0   something other mods depended on changed
+
+If other mods depend on yours, that last line is a promise. Keep it.
+
+A WORD ON TRUST
+
+Mods are Java code with no sandbox - true of every Minecraft mod loader. Your
+users are trusting you. Publish from an account you control, keep your source
+public if you can, and never ship a mod that downloads and runs code at runtime.
+
+
+================================================================================
+21. QUICK REFERENCE
+================================================================================
+
+COMMANDS
+
+    java -jar ReMod.jar                          open the installer
+    java -jar ReMod.jar install 1.21.4           install
+    java -jar ReMod.jar uninstall 1.21.4         remove (keeps mods and worlds)
+    java -jar ReMod.jar create MyMod             new project
+    java -jar ReMod.jar build                    build and verify
+    java -jar ReMod.jar test --mods build/libs   load without Minecraft
+    java -jar ReMod.jar list mods                what is installed
+    java -jar ReMod.jar list versions            what Minecraft versions exist
+    java -jar ReMod.jar list loaders             other loaders detected
+    java -jar ReMod.jar help <command>           usage for one command
+
+FOLDERS
+
+    .minecraft/remod/mods/            your mods
+    .minecraft/remod/config/          settings, one file per mod
+    .minecraft/remod/data/<modid>/    your mod's private data
+    .minecraft/remod/logs/remod.log   the log
+    .minecraft/remod/api/             the API jar to compile against
+
+CONTEXT
+
+    context.logger()          context.events()
+    context.registries()      context.commands()
+    context.config()          context.network()
+    context.resources()       context.client()
+    context.dataDirectory()   context.game()
+    context.isModLoaded(id)   context.side()
+
+LIFECYCLE
+
+    onPreInitialize     config; nothing registered yet
+    onInitialize        register everything here
+    onPostInitialize    other mods have finished registering
+    onClientInitialize  keybinds, HUD (client only)
+    onServerInitialize  server only
+    onShutdown          save and close
+
+MORE
+
+    README.md                  overview and troubleshooting
+    docs/mod-format.md         the manifest, in full
+    docs/version-support.md    what works on which Minecraft version
+    docs/compatibility.md      other loaders
+    docs/architecture.md       how ReMod is put together
+    examples/                  three complete working mods
+    mdk/MyReModProject/        a generated project, to read
+
+Happy modding.

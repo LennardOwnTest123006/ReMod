@@ -1,0 +1,65 @@
+plugins {
+    id 'java'
+}
+
+allprojects {
+    group = project.property('group')
+    version = project.property('remodVersion')
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'java-library'
+
+    java {
+        withSourcesJar()
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.10.2')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // Java 17 is the lowest JDK any currently supported Minecraft release
+        // runs on, so every ReMod artifact targets 17 for maximum reach.
+        // --release (rather than a toolchain) keeps the build working on any
+        // JDK 17 or newer without needing a second JDK installed.
+        options.release = 17
+        options.compilerArgs << '-Xlint:-options'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+        testLogging {
+            events 'passed', 'failed', 'skipped'
+            exceptionFormat 'full'
+        }
+    }
+
+    tasks.withType(Jar).configureEach {
+        manifest {
+            attributes(
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': project.version,
+                'ReMod-Version'         : project.property('remodVersion'),
+                'ReMod-Api-Baseline'    : project.property('remodApiBaseline')
+            )
+        }
+    }
+}
+
+// Root project produces nothing itself; ':remod-dist' produces ReMod.jar.
+tasks.named('jar') { enabled = false }
+
+tasks.register('remodJar') {
+    group = 'build'
+    description = 'Builds the distributable ReMod.jar (delegates to :remod-dist).'
+    dependsOn ':remod-dist:jar'
+}

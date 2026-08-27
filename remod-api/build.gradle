@@ -1,0 +1,7 @@
+description = 'The public ReMod API that mods compile against.'
+
+dependencies {
+    // Exposed transitively: a mod that has remod-api also gets ReMod's JSON,
+    // logging and version primitives, which its manifest and config need.
+    api project(':remod-common')
+}

@@ -1,0 +1,7 @@
+description = 'The ReMod installer: version selection, launcher integration and the GUI.'
+
+dependencies {
+    api project(':remod-loader')
+    api project(':remod-version-adapters')
+    api project(':remod-compatibility')
+}

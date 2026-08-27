@@ -1,0 +1,6 @@
+description = 'Shared primitives for ReMod: JSON, logging, versioning, safe IO.'
+
+dependencies {
+    // Intentionally zero third-party runtime dependencies: ReMod.jar must be a
+    // single self-contained artifact that a user can double-click.
+}

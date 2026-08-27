@@ -1,0 +1,20 @@
+description = 'ReMod Example Client Mod: a keybind, a HUD element and client tick handling.'
+
+dependencies {
+    compileOnly project(':remod-api')
+    testImplementation project(':remod-api')
+    testImplementation project(':remod-loader')
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'ReMod-Example-Client-Mod'
+}
+
+tasks.named('processResources') {
+    inputs.property('modVersion', project.version)
+    inputs.property('apiVersion', "1.21-${project.property('remodApiBaseline')}")
+    filesMatching('remod.mod.json') {
+        expand(modVersion: project.version,
+               apiVersion: "1.21-${project.property('remodApiBaseline')}")
+    }
+}

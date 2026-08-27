@@ -1,0 +1,133 @@
+description = 'Packages every ReMod module into the single distributable ReMod.jar.'
+
+dependencies {
+    implementation project(':remod-cli')
+    implementation project(':remod-installer')
+    implementation project(':remod-version-adapters')
+    implementation project(':remod-compatibility')
+    implementation project(':remod-loader')
+    implementation project(':remod-api')
+    implementation project(':remod-common')
+}
+
+// The modules whose jars are carried inside ReMod.jar and installed into
+// .minecraft/libraries/ by the installer. The loader, API, common and adapter
+// jars are what the Minecraft launcher actually puts on the game's classpath.
+def bundledProjects = [
+    ':remod-common',
+    ':remod-api',
+    ':remod-loader',
+    ':remod-version-adapters',
+    ':remod-compatibility'
+]
+
+def bundledLibsDir = layout.buildDirectory.dir('bundled-libs')
+
+// A single self-contained jar for mod authors to compile against: remod-api
+// plus remod-common, because the API surface exposes ReModLogger, ApiVersion
+// and the JSON types from remod-common. Shipping them separately would make
+// every generated project need two file dependencies to compile.
+def developerApiJarName = "remod-api-dev-${project.property('remodVersion')}.jar"
+
+tasks.register('developerApiJar', Jar) {
+    group = 'build'
+    description = 'Builds the self-contained ReMod API jar that mods compile against.'
+    archiveFileName = developerApiJarName
+    destinationDirectory = bundledLibsDir
+    dependsOn ':remod-api:classes', ':remod-common:classes'
+    from project(':remod-api').sourceSets.main.output
+    from project(':remod-common').sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Implementation-Title': 'ReMod API',
+            'Implementation-Version': project.property('remodVersion'),
+            'ReMod-Api-Baseline': project.property('remodApiBaseline')
+        )
+    }
+}
+
+// Copies each module jar into the resource tree that ends up inside ReMod.jar.
+tasks.register('collectBundledLibraries', Copy) {
+    group = 'build'
+    description = 'Gathers the ReMod module jars that the installer will place in .minecraft.'
+    into bundledLibsDir
+    bundledProjects.each { path ->
+        def module = project(path)
+        dependsOn "${path}:jar"
+        from(module.tasks.named('jar')) {
+            rename { "${module.name}-${module.version}.jar" }
+        }
+    }
+}
+
+// Generates the index the installer reads to know what it is carrying, so the
+// list can never drift from what was actually bundled.
+tasks.register('generateLibraryIndex') {
+    group = 'build'
+    description = 'Writes remod-libs/index.json describing the bundled module jars.'
+    dependsOn 'collectBundledLibraries', 'developerApiJar'
+    def outputDir = bundledLibsDir
+    def devApiFile = developerApiJarName
+    def entries = bundledProjects.collect { path ->
+        def module = project(path)
+        [group: module.group.toString(), artifact: module.name,
+         version: module.version.toString(), file: "${module.name}-${module.version}.jar"]
+    }
+    inputs.property('entries', entries.toString())
+    inputs.property('devApiFile', devApiFile)
+    outputs.file(outputDir.map { it.file('index.json') })
+    doLast {
+        def json = new StringBuilder()
+        json << '{\n  "libraries": [\n'
+        entries.eachWithIndex { entry, index ->
+            json << '    {'
+            json << "\"group\": \"${entry.group}\", "
+            json << "\"artifact\": \"${entry.artifact}\", "
+            json << "\"version\": \"${entry.version}\", "
+            json << "\"file\": \"${entry.file}\""
+            json << (index == entries.size() - 1 ? '}\n' : '},\n')
+        }
+        json << '  ],\n'
+        json << "  \"developerApiJar\": \"${devApiFile}\"\n"
+        json << '}\n'
+        outputDir.get().file('index.json').asFile.text = json.toString()
+    }
+}
+
+tasks.named('jar', Jar) {
+    archiveBaseName = 'ReMod'
+    archiveVersion = ''
+    archiveClassifier = ''
+
+    dependsOn 'generateLibraryIndex', 'developerApiJar'
+    // Building the merged jar requires every module jar to exist first.
+    dependsOn configurations.runtimeClasspath
+
+    manifest {
+        attributes(
+            'Main-Class': 'dev.remod.ReMod',
+            'Implementation-Title': 'ReMod',
+            'Implementation-Version': project.property('remodVersion'),
+            'ReMod-Version': project.property('remodVersion'),
+            'ReMod-Api-Baseline': project.property('remodApiBaseline')
+        )
+    }
+
+    // A plain fat jar: ReMod has no third-party runtime dependencies, so this
+    // merges only ReMod's own classes and needs no relocation or shading.
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    // The module jars themselves, for the installer to place in .minecraft.
+    from(bundledLibsDir) {
+        into 'remod-libs'
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // Signature files from dependencies would invalidate the merged jar.
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/MANIFEST.MF'
+}
+
+// The sources jar for an aggregating module has no useful content.
+tasks.named('sourcesJar') { enabled = false }

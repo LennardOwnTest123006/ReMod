@@ -1,0 +1,5 @@
+description = 'Detection and bridging for other Minecraft mod loaders and server platforms.'
+
+dependencies {
+    api project(':remod-loader')
+}

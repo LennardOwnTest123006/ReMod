@@ -1,0 +1,22 @@
+description = 'ReMod Simple Mod: items, blocks, a command, config and events.'
+
+dependencies {
+    // compileOnly, because ReMod provides the API at runtime. Bundling it into
+    // a mod jar would load a second copy of every API class.
+    compileOnly project(':remod-api')
+    testImplementation project(':remod-api')
+    testImplementation project(':remod-loader')
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'ReMod-Simple-Mod'
+}
+
+tasks.named('processResources') {
+    inputs.property('modVersion', project.version)
+    inputs.property('apiVersion', "1.21-${project.property('remodApiBaseline')}")
+    filesMatching('remod.mod.json') {
+        expand(modVersion: project.version,
+               apiVersion: "1.21-${project.property('remodApiBaseline')}")
+    }
+}

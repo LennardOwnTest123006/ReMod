@@ -1,0 +1,18 @@
+rootProject.name = 'ReMod'
+
+include 'remod-common'
+include 'remod-api'
+include 'remod-loader'
+include 'remod-version-adapters'
+include 'remod-compatibility'
+include 'remod-installer'
+include 'remod-cli'
+include 'remod-dist'
+
+include 'examples:simple-mod'
+include 'examples:client-example'
+include 'examples:server-example'
+
+project(':examples:simple-mod').name = 'remod-example-simple-mod'
+project(':examples:client-example').name = 'remod-example-client-mod'
+project(':examples:server-example').name = 'remod-example-server-mod'

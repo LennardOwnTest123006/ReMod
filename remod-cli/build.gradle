@@ -1,0 +1,6 @@
+description = 'The remod command-line tool: project scaffolding, building and testing mods.'
+
+dependencies {
+    api project(':remod-loader')
+    api project(':remod-installer')
+}

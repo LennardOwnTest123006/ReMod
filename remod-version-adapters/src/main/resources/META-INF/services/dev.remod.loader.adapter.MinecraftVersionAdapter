@@ -1,0 +1,4 @@
+# ReMod version adapters, discovered by java.util.ServiceLoader.
+# Adding support for a new Minecraft family means adding a line here and a class
+# that returns a higher Support score for the versions it handles.
+dev.remod.adapter.generic.ModernVersionAdapter

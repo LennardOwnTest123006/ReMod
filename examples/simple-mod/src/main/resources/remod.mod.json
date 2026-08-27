@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "simplemod",
+  "name": "ReMod Simple Mod",
+  "version": "${modVersion}",
+  "author": "ReMod Developer",
+  "description": "A simple ReMod example mod: an item, a block, a creative tab, a command, configuration and events.",
+  "minecraft": "1.21.x",
+  "remod_api": "${apiVersion}",
+  "side": "common",
+  "entrypoints": ["dev.remod.examples.simple.SimpleMod"],
+  "dependencies": [],
+  "license": "MIT"
+}

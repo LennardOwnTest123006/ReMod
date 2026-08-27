@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "remodexampleserver",
+  "name": "ReMod Example Server Mod",
+  "version": "${modVersion}",
+  "author": "ReMod Developer",
+  "description": "Demonstrates server lifecycle events, a command, player join handling and chat filtering.",
+  "minecraft": "1.21.x",
+  "remod_api": "${apiVersion}",
+  "side": "server",
+  "entrypoints": ["dev.remod.examples.server.ExampleServerMod"],
+  "dependencies": [],
+  "license": "MIT"
+}
