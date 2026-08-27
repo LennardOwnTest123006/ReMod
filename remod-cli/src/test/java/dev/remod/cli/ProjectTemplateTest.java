@@ -34,7 +34,8 @@ class ProjectTemplateTest {
         for (String name : new String[]{"MyMod", "My Super Mod!", "123", "a"}) {
             String modId = ProjectTemplate.toModId(name);
             String json = "{\"id\":\"" + modId + "\",\"version\":\"1.0.0\","
-                    + "\"minecraft\":\"1.21.x\",\"remod_api\":\"1.21-1.0.0\","
+                    + "\"minecraft\":\"1.21.x\",\"remod_api\":\""
+                    + dev.remod.loader.ReModVersions.apiBaseline() + "\","
                     + "\"entrypoints\":[\"dev.example.Main\"]}";
             dev.remod.api.mod.ModMetadata metadata =
                     dev.remod.api.mod.ModMetadata.parse(json, name);
@@ -53,7 +54,10 @@ class ProjectTemplateTest {
         ProjectTemplate template =
                 new ProjectTemplate("Thing", "dev.example.thing", "1.20.1", "Author");
 
-        assertEquals("1.20-1.0.0", template.apiVersion().toString());
+        // Read the baseline rather than hard-coding it, so bumping the API
+        // surface does not break this test.
+        assertEquals("1.20-" + dev.remod.loader.ReModVersions.apiBaseline(),
+                template.apiVersion().toString());
         assertEquals("thing", template.modId());
         assertEquals("dev.example.thing.Thing", template.mainClass());
     }

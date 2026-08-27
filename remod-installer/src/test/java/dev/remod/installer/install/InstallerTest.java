@@ -119,7 +119,8 @@ class InstallerTest {
                 version.getArray("libraries").getObject(2).getString("name"));
         assertTrue(version.getObject("arguments").getArray("jvm").asStringList()
                 .contains("-Dremod.minecraftVersion=1.21.4"));
-        assertEquals("1.21-1.0.0", version.getObject("remod").getString("apiVersion"));
+        assertEquals("1.21-" + dev.remod.loader.ReModVersions.apiBaseline(),
+                version.getObject("remod").getString("apiVersion"));
     }
 
     @Test
@@ -151,7 +152,8 @@ class InstallerTest {
         // Named after the baseline alone, with no Minecraft series: the jar is
         // identical on every series, so a mod project's build file keeps
         // working when ReMod is installed for another Minecraft version.
-        assertEquals("remod-api-1.0.0.jar", result.apiJar().getFileName().toString());
+        assertEquals("remod-api-" + dev.remod.loader.ReModVersions.apiBaseline() + ".jar",
+                result.apiJar().getFileName().toString());
     }
 
     @Test

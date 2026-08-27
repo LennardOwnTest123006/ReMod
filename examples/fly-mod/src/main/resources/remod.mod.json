@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "flymod",
+  "name": "ReMod Fly Mod",
+  "version": "${modVersion}",
+  "author": "ReMod Developer",
+  "description": "Adds /fly, letting you fly in your own single-player world. Only affects you, and only in your own world unless you deliberately enable it elsewhere.",
+  "minecraft": ">=1.17 <2.0",
+  "remod_api": "${apiBaseline}",
+  "side": "common",
+  "entrypoints": ["dev.remod.examples.fly.FlyMod"],
+  "dependencies": [],
+  "license": "MIT"
+}

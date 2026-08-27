@@ -210,6 +210,9 @@ Outputs:
   overlay and client tick handling.
 - **[ReMod Example Server Mod](examples/server-example)** — server lifecycle
   events, player join/quit tracking, a command and chat filtering.
+- **[ReMod Fly Mod](examples/fly-mod)** — `/fly` in your own single-player
+  world: a permission-gated command, flight abilities, and per-player state
+  that survives a relog.
 
 All three compile against the public API only and are built by the main build.
 

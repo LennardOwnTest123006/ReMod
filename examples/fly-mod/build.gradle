@@ -1,0 +1,21 @@
+description = 'ReMod Fly Mod: /fly in your own single-player world.'
+
+dependencies {
+    compileOnly project(':remod-api')
+    testImplementation project(':remod-api')
+    testImplementation project(':remod-loader')
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'Fly-Mod-ReMod'
+    archiveVersion = ''
+}
+
+tasks.named('processResources') {
+    inputs.property('modVersion', project.version)
+    inputs.property('apiBaseline', project.property('remodApiBaseline'))
+    filesMatching('remod.mod.json') {
+        expand(modVersion: project.version,
+               apiBaseline: project.property('remodApiBaseline'))
+    }
+}
