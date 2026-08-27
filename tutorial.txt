@@ -877,9 +877,23 @@ Copy the jar into .minecraft/remod/mods/, or let Gradle do it:
 
 Then start Minecraft through the ReMod installation in the launcher.
 
+RUN YOUR MOD AND WATCH IT WORK, WITHOUT STARTING MINECRAFT
+
+The fastest way to see your mod actually do something:
+
+    java -jar ReMod.jar play --mods build/libs
+
+This loads your mod into a real in-memory single-player world and lets you type
+its commands. The player's state genuinely changes - when the fly mod's /fly
+grants flight, that is the mod doing it, not a script. Try:
+
+    java -jar ReMod.jar play --mods build/libs --run "/fly ; /fly status"
+
+Run it with no --run for a console where you type commands yourself.
+
 CHECK IT LOADS WITHOUT STARTING MINECRAFT
 
-This is the fastest loop you have while developing:
+A quicker check that just confirms loading:
 
     java -jar ReMod.jar test --mods build/libs
 

@@ -43,10 +43,27 @@ That is a working mod loader for anything a mod does in its own process. It is
 what the example mods and the generated MDK project exercise, and it is covered
 end to end by ReMod's tests.
 
-## Commands: bound, as of ReMod 1.1.0
+## The safe default: Minecraft always starts
 
-Commands registered by a mod are now inserted into Minecraft's own command tree,
-so `/fly` is a real command in game rather than "Unknown command".
+In-game binding is **off by default**, because the layer that reaches into a
+running Minecraft is unverified against every real build and a class-loader
+problem there could stop the game launching. With it off, ReMod launches
+Minecraft exactly as vanilla and loads your mods -- the proven, safe path.
+
+To try binding commands into the live game, add
+`-Dremod.experimental.gamebinding=true` to the installation's JVM arguments in
+the launcher. If Minecraft then fails to start, remove it and the game launches
+normally.
+
+Either way, `remod play` runs your mods' commands against a real simulated
+player and shows them working, with no Minecraft and no uncertainty. That is
+the reliable way to see a mod do what it claims.
+
+## Commands: the in-game binding (experimental, opt-in)
+
+When `-Dremod.experimental.gamebinding=true` is set, commands registered by a
+mod are inserted into Minecraft's own command tree, so `/fly` becomes a real
+command in game rather than "Unknown command".
 
 Three pieces make that work, and the first is the interesting one:
 

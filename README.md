@@ -12,8 +12,30 @@ java -jar ReMod.jar                    # opens the installer
 java -jar ReMod.jar install 1.21.4     # or install from the command line
 java -jar ReMod.jar create MyMod       # scaffold a mod project
 cd MyMod && ./gradlew build            # build it
-java -jar ReMod.jar test --mods build/libs   # check it loads, in ~2 seconds
+java -jar ReMod.jar play --mods build/libs   # RUN your mod and watch it work
 ```
+
+## Seeing a mod actually work, without Minecraft
+
+`remod play` loads your mods into a real, in-memory single-player world -- a
+player whose flight state genuinely changes, a server that genuinely is
+single-player -- and runs your commands through the mod's own code. When
+`/fly` flips the player from grounded to flying, that is the mod doing it.
+
+```
+$ java -jar ReMod.jar play --mods build/libs --run "/fly ; /fly status"
+
+$ /fly
+  [reply] Flight enabled. Double-tap jump.
+  -> flight allowed: false -> true,  flying: false -> false
+$ /fly status
+  [reply] Flight allowed: true
+  [reply] Speed: 0.05
+```
+
+No Minecraft, no obfuscation, no uncertainty -- this is the mod's real logic,
+and it is covered by tests. Run it with no `--run` for an interactive console
+where you type commands yourself.
 
 ## What works today, precisely
 

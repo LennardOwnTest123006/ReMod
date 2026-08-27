@@ -5,6 +5,7 @@ import dev.remod.cli.command.CreateCommand;
 import dev.remod.cli.command.InitCommand;
 import dev.remod.cli.command.InstallCommand;
 import dev.remod.cli.command.ListCommand;
+import dev.remod.cli.command.PlayCommand;
 import dev.remod.cli.command.TestCommand;
 import dev.remod.common.log.LogLevel;
 import dev.remod.common.log.ReModLog;
@@ -29,6 +30,7 @@ public final class ReModCli {
         register(new CreateCommand());
         register(new BuildCommand());
         register(new TestCommand());
+        register(new PlayCommand());
         register(new InitCommand());
         register(new InstallCommand(false));
         register(new InstallCommand(true));
@@ -117,7 +119,11 @@ public final class ReModCli {
                 + " 1.21.4");
         console.print("  java -jar ReMod.jar create MyMod       Create a mod project");
         console.print("  cd MyMod && ./gradlew build            Build it");
-        console.print("  java -jar ReMod.jar test --mods build/libs");
+        console.print("  java -jar ReMod.jar play --mods build/libs   Run and WATCH your mod work");
+        console.blank();
+        console.print("  'play' runs your mod's commands against a simulated player, so you can");
+        console.print("  see them work without launching Minecraft. Try it with the fly mod:");
+        console.print("    java -jar ReMod.jar play --mods <folder> --run \"/fly\"");
         console.blank();
         console.print("  The complete beginner's guide is in tutorial.txt.");
     }

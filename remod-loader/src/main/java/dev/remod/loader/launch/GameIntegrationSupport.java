@@ -35,6 +35,20 @@ final class GameIntegrationSupport {
      *         transforming one when available, otherwise {@code parent}
      */
     static ClassLoader installIfPresent(ClassLoader parent) {
+        // The transformation layer is unverified against every real Minecraft
+        // build, and a class-loader problem there would stop the game starting.
+        // So it is OFF by default: ReMod launches Minecraft exactly as vanilla
+        // and loads mods, which is the safe, proven path. Turn the in-game
+        // binding on explicitly with -Dremod.experimental.gamebinding=true once
+        // you have confirmed it starts on your version.
+        if (!Boolean.getBoolean("remod.experimental.gamebinding")) {
+            LOG.info("In-game binding is off (the safe default). Minecraft will start"
+                    + " normally and your mods will load. To try binding commands into the"
+                    + " game, add -Dremod.experimental.gamebinding=true to the JVM arguments.");
+            return parent;
+        }
+        LOG.warn("Experimental in-game binding is ON. If Minecraft fails to start, remove"
+                + " -Dremod.experimental.gamebinding=true and it will launch normally.");
         try {
             Class<?> type = Class.forName(INTEGRATION_CLASS, true, parent);
             Method install = type.getMethod("install", ClassLoader.class);
